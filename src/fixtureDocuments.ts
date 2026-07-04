@@ -1,5 +1,7 @@
 import {
   type DocumentRecord,
+  type EvidenceRegion,
+  type ExtractedField,
   createUploadedDocument,
   normalizeDocument,
   validateDocument,
@@ -24,6 +26,22 @@ export function createFixtureDocument(fixture: GeneratedFixture): DocumentRecord
     id: `fixture-${fixture.id}`,
     uploadedAt: "Fixture",
     status: "needs_review",
+    source: "import",
+    processingMessage: "Fixture loaded from test lab",
+    sourcePreview: {
+      kind: "image",
+      image: fixture.image,
+      width: 1120,
+      height: 1580,
+      page: 1,
+      mimeType: "image/svg+xml"
+    },
+    evidenceRegions: [
+      fixtureEvidence("vendorName", "Vendor name", fixture.expected.vendorName),
+      fixtureEvidence("invoiceNumber", "Invoice number", fixture.expected.invoiceNumber),
+      fixtureEvidence("invoiceDate", "Invoice date", fixture.expected.invoiceDate),
+      fixtureEvidence("invoiceTotal", "Invoice total", fixture.expected.invoiceTotal.toFixed(2))
+    ],
     invoice: {
       ...base.invoice,
       vendorName: fixture.expected.vendorName,
@@ -59,6 +77,21 @@ export function createFixtureDocument(fixture: GeneratedFixture): DocumentRecord
   return {
     ...document,
     status: counts.errors > 0 || counts.warnings > 0 ? "needs_review" : "ready"
+  };
+}
+
+function fixtureEvidence(
+  fieldKey: ExtractedField["key"],
+  label: string,
+  text: string
+): EvidenceRegion {
+  return {
+    id: `fixture-${String(fieldKey)}`,
+    fieldKey,
+    label,
+    text,
+    confidence: 96,
+    page: 1
   };
 }
 

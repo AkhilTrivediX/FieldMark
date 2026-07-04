@@ -39,35 +39,47 @@ import {
   formatMoney,
   normalizeDocument,
   schemaFields,
-  seedDocuments,
   validateDocument,
   updateInvoiceField,
   validationCounts
 } from "./domain.js";
 import { createFixtureDocument, fixtureSuiteSummary, runFixtureSuite } from "./fixtureDocuments.js";
 import { type GeneratedFixture } from "./generatedFixtures.js";
+import { extractDocumentFromFile } from "./localExtraction.js";
 
 type MainTab = "vault" | "schemas" | "validation" | "exports" | "lab";
 
 const storageKey = "fieldmark.workspace.v1";
-const fallbackDocument = seedDocuments[0]!;
 
 export function App() {
   const [activeTab, setActiveTab] = useState<MainTab>("vault");
   const [mode, setMode] = useState<WorkspaceMode>("local");
   const [documents, setDocuments] = useState<DocumentRecord[]>(() => readDocuments());
-  const [selectedId, setSelectedId] = useState(fallbackDocument.id);
+  const [selectedId, setSelectedId] = useState<string | null>(() => readDocuments()[0]?.id ?? null);
+  const uploadFiles = useRef(new Map<string, File>());
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const selectedDocument = documents.find((document) => document.id === selectedId) ?? documents[0] ?? fallbackDocument;
+  const selectedDocument = documents.find((document) => document.id === selectedId) ?? documents[0] ?? null;
   const selectedValidation = useMemo(
-    () => validateDocument(selectedDocument),
+    () => (selectedDocument ? validateDocument(selectedDocument) : []),
     [selectedDocument]
   );
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(documents));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(documents.map((document) => prepareDocumentForStorage(document))));
+    } catch {
+      localStorage.setItem(storageKey, JSON.stringify(documents.map((document) => prepareDocumentForStorage(document, true))));
+    }
   }, [documents]);
+
+  useEffect(() => {
+    if (selectedDocument || documents.length === 0) {
+      return;
+    }
+
+    setSelectedId(documents[0]!.id);
+  }, [documents, selectedDocument]);
 
   function selectDocument(id: string) {
     setSelectedId(id);
@@ -75,6 +87,10 @@ export function App() {
   }
 
   function updateSelectedField(field: ExtractedField, value: string) {
+    if (!selectedDocument) {
+      return;
+    }
+
     setDocuments((current) =>
       current.map((document) => {
         if (document.id !== selectedDocument.id) {
@@ -94,8 +110,12 @@ export function App() {
   }
 
   function applyExpectedTotal() {
+    if (!selectedDocument) {
+      return;
+    }
+
     const expected = calculatedTotal(selectedDocument.invoice).toFixed(2);
-    const field = extractedFields(selectedDocument.invoice).find((item) => item.key === "invoiceTotal");
+    const field = extractedFields(selectedDocument).find((item) => item.key === "invoiceTotal");
 
     if (field) {
       updateSelectedField(field, expected);
@@ -103,6 +123,10 @@ export function App() {
   }
 
   function markReviewed() {
+    if (!selectedDocument) {
+      return;
+    }
+
     const counts = validationCounts(selectedValidation);
 
     setDocuments((current) =>
@@ -114,18 +138,93 @@ export function App() {
     );
   }
 
-  function processQueuedDocument(id: string) {
+  async function processQueuedDocument(id: string) {
+    const file = uploadFiles.current.get(id);
+
+    if (!file) {
+      setDocuments((current) =>
+        current.map((document) =>
+          document.id === id
+            ? {
+                ...document,
+                status: "needs_review",
+                processingMessage: "Original file is not attached in this browser session. Upload it again to run OCR.",
+                ocr: {
+                  engine: document.ocr?.engine ?? "local",
+                  status: "failed",
+                  text: document.ocr?.text ?? "",
+                  confidence: document.ocr?.confidence ?? null,
+                  error: "Original file missing from session memory."
+                }
+              }
+            : document
+        )
+      );
+      return;
+    }
+
+    const baseDocument = documents.find((document) => document.id === id);
+    await runExtraction(id, file, baseDocument);
+  }
+
+  async function runExtraction(id: string, file: File, baseOverride?: DocumentRecord) {
     setDocuments((current) =>
       current.map((document) =>
         document.id === id
           ? {
               ...document,
-              status: "needs_review",
-              uploadedAt: document.uploadedAt === "Just now" ? "OCR ready" : document.uploadedAt
+              status: "processing",
+              processingMessage: "Preparing local OCR",
+              ocr: {
+                engine: "Tesseract.js local eng",
+                status: "processing",
+                text: document.ocr?.text ?? "",
+                confidence: document.ocr?.confidence ?? null
+              }
             }
           : document
       )
     );
+
+    const baseDocument = baseOverride ?? documents.find((document) => document.id === id) ?? createUploadedDocument(file.name, { mimeType: file.type });
+
+    try {
+      const extracted = await extractDocumentFromFile(file, baseDocument, (progress) => {
+        setDocuments((current) =>
+          current.map((document) =>
+            document.id === id
+              ? {
+                  ...document,
+                  status: "processing",
+                  processingMessage: `${progress.stage} (${Math.round(progress.progress)}%)`
+                }
+              : document
+          )
+        );
+      });
+
+      setDocuments((current) => current.map((document) => (document.id === id ? extracted : document)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "OCR failed.";
+      setDocuments((current) =>
+        current.map((document) =>
+          document.id === id
+            ? {
+                ...document,
+                status: "needs_review",
+                processingMessage: message,
+                ocr: {
+                  engine: "Tesseract.js local eng",
+                  status: "failed",
+                  text: document.ocr?.text ?? "",
+                  confidence: document.ocr?.confidence ?? null,
+                  error: message
+                }
+              }
+            : document
+        )
+      );
+    }
   }
 
   function handleFiles(files: FileList | null) {
@@ -133,10 +232,20 @@ export function App() {
       return;
     }
 
-    const incoming = Array.from(files).map((file) => createUploadedDocument(file.name));
+    const fileArray = Array.from(files);
+    const incoming = fileArray.map((file) => createUploadedDocument(file.name, { mimeType: file.type }));
+
+    incoming.forEach((document, index) => {
+      uploadFiles.current.set(document.id, fileArray[index]!);
+    });
+
     setDocuments((current) => [...incoming, ...current]);
     setSelectedId(incoming[0]!.id);
     setActiveTab("vault");
+
+    incoming.forEach((document, index) => {
+      void runExtraction(document.id, fileArray[index]!, document);
+    });
 
     if (fileInput.current) {
       fileInput.current.value = "";
@@ -151,6 +260,10 @@ export function App() {
   }
 
   function downloadSelectedJson() {
+    if (!selectedDocument) {
+      return;
+    }
+
     downloadText(
       `${selectedDocument.fileName.replace(/\.[^.]+$/, "")}.fieldmark.json`,
       exportDocumentJson(selectedDocument),
@@ -159,6 +272,10 @@ export function App() {
   }
 
   function downloadCsv() {
+    if (documents.length === 0) {
+      return;
+    }
+
     downloadText("fieldmark-export.csv", exportDocumentsCsv(documents), "text/csv");
   }
 
@@ -169,7 +286,7 @@ export function App() {
         className="hidden-input"
         type="file"
         multiple
-        accept=".pdf,.png,.jpg,.jpeg,.json,.csv"
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.json,.csv"
         onChange={(event) => handleFiles(event.target.files)}
       />
 
@@ -184,6 +301,7 @@ export function App() {
           onDownloadJson={downloadSelectedJson}
           onMarkReviewed={markReviewed}
           onProcessQueued={processQueuedDocument}
+          onRefreshExtraction={processQueuedDocument}
           onSelectDocument={selectDocument}
           onUpdateField={updateSelectedField}
           onUpload={() => fileInput.current?.click()}
@@ -294,12 +412,13 @@ function modeLabel(mode: WorkspaceMode) {
 
 interface VaultWorkspaceProps {
   documents: DocumentRecord[];
-  selectedDocument: DocumentRecord;
+  selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
   onApplyExpectedTotal: () => void;
   onDownloadJson: () => void;
   onMarkReviewed: () => void;
   onProcessQueued: (id: string) => void;
+  onRefreshExtraction: (id: string) => void;
   onSelectDocument: (id: string) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
   onUpload: () => void;
@@ -313,6 +432,7 @@ function VaultWorkspace({
   onDownloadJson,
   onMarkReviewed,
   onProcessQueued,
+  onRefreshExtraction,
   onSelectDocument,
   onUpdateField,
   onUpload
@@ -321,27 +441,41 @@ function VaultWorkspace({
     <main className="workspace vault-workspace">
       <DocumentQueue
         documents={documents}
-        selectedId={selectedDocument.id}
+        selectedId={selectedDocument?.id ?? null}
         onProcessQueued={onProcessQueued}
         onSelectDocument={onSelectDocument}
         onUpload={onUpload}
       />
 
       <section className="viewer" aria-label="Document viewer">
-        <ViewerToolbar fileName={selectedDocument.fileName} onDownloadJson={onDownloadJson} />
-        <div className="viewer-canvas">
-          <InvoicePage document={selectedDocument} />
-        </div>
-        <ViewerFooter />
+        {selectedDocument ? (
+          <>
+            <ViewerToolbar
+              fileName={selectedDocument.fileName}
+              onDownloadJson={onDownloadJson}
+              onRefreshExtraction={() => onRefreshExtraction(selectedDocument.id)}
+            />
+            <div className="viewer-canvas">
+              <DocumentSourceView document={selectedDocument} />
+            </div>
+            <ViewerFooter />
+          </>
+        ) : (
+          <EmptyViewer onUpload={onUpload} />
+        )}
       </section>
 
-      <FieldRail
-        document={selectedDocument}
-        validation={validation}
-        onApplyExpectedTotal={onApplyExpectedTotal}
-        onMarkReviewed={onMarkReviewed}
-        onUpdateField={onUpdateField}
-      />
+      {selectedDocument ? (
+        <FieldRail
+          document={selectedDocument}
+          validation={validation}
+          onApplyExpectedTotal={onApplyExpectedTotal}
+          onMarkReviewed={onMarkReviewed}
+          onUpdateField={onUpdateField}
+        />
+      ) : (
+        <EmptyFieldRail onUpload={onUpload} />
+      )}
     </main>
   );
 }
@@ -354,7 +488,7 @@ function DocumentQueue({
   onUpload
 }: {
   documents: DocumentRecord[];
-  selectedId: string;
+  selectedId: string | null;
   onProcessQueued: (id: string) => void;
   onSelectDocument: (id: string) => void;
   onUpload: () => void;
@@ -374,6 +508,13 @@ function DocumentQueue({
       </button>
 
       <div className="doc-list">
+        {documents.length === 0 ? (
+          <div className="doc-empty">
+            <FileText size={18} />
+            <span>No documents yet</span>
+            <button onClick={onUpload}>Upload invoice</button>
+          </div>
+        ) : null}
         {documents.map((document) => (
           <button
             key={document.id}
@@ -384,7 +525,7 @@ function DocumentQueue({
             <span className="doc-title">
               <strong>{document.fileName}</strong>
               <small>
-                {document.uploadedAt}
+                {document.processingMessage ?? document.uploadedAt}
                 {document.status === "needs_review" ? <span className="doc-dot" /> : null}
               </small>
               <StatusBadge status={document.status} />
@@ -437,10 +578,12 @@ function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
 
 function ViewerToolbar({
   fileName,
-  onDownloadJson
+  onDownloadJson,
+  onRefreshExtraction
 }: {
   fileName: string;
   onDownloadJson: () => void;
+  onRefreshExtraction: () => void;
 }) {
   return (
     <div className="filebar">
@@ -462,11 +605,102 @@ function ViewerToolbar({
         <button className="icon-button" aria-label="Full screen">
           <Maximize />
         </button>
-        <button className="icon-button" aria-label="Refresh extraction">
+        <button className="icon-button" aria-label="Refresh extraction" onClick={onRefreshExtraction}>
           <RefreshCw />
         </button>
       </div>
       <div />
+    </div>
+  );
+}
+
+function EmptyViewer({ onUpload }: { onUpload: () => void }) {
+  return (
+    <div className="empty-viewer">
+      <div className="empty-mark">
+        <Upload size={28} />
+      </div>
+      <h1>Upload an invoice to start extraction</h1>
+      <p>FieldMark keeps the file in this browser session, runs local OCR, maps fields to JSON, and checks totals before export.</p>
+      <button onClick={onUpload}>
+        <Upload size={16} />
+        Choose PDF or image
+      </button>
+    </div>
+  );
+}
+
+function DocumentSourceView({ document }: { document: DocumentRecord }) {
+  const preview = document.sourcePreview;
+
+  if (preview?.image) {
+    return (
+      <article className="source-page" aria-label="Uploaded document source">
+        {document.status === "processing" ? (
+          <div className="source-processing">
+            <RefreshCw size={16} />
+            <span>{document.processingMessage ?? "Running local OCR"}</span>
+          </div>
+        ) : null}
+        <img src={preview.image} alt={`${document.fileName} source`} />
+        <EvidenceOverlay document={document} />
+      </article>
+    );
+  }
+
+  if (preview?.kind === "text") {
+    return (
+      <article className="source-page text-source" aria-label="Imported text source">
+        <pre>{preview.text}</pre>
+      </article>
+    );
+  }
+
+  if (document.source !== "sample") {
+    return (
+      <article className="source-page unavailable-source" aria-label="Source unavailable">
+        <FileText size={34} />
+        <h2>Source file is not attached</h2>
+        <p>{document.processingMessage ?? "Upload this file again to run local OCR and show source evidence."}</p>
+      </article>
+    );
+  }
+
+  return <InvoicePage document={document} />;
+}
+
+function EvidenceOverlay({ document }: { document: DocumentRecord }) {
+  const preview = document.sourcePreview;
+
+  if (!preview?.width || !preview.height || !document.evidenceRegions?.length) {
+    return null;
+  }
+
+  return (
+    <div className="evidence-overlay" aria-hidden="true">
+      {document.evidenceRegions
+        .filter((region) => region.bbox)
+        .map((region) => {
+          const box = region.bbox!;
+          const left = (box.x0 / preview.width!) * 100;
+          const top = (box.y0 / preview.height!) * 100;
+          const width = ((box.x1 - box.x0) / preview.width!) * 100;
+          const height = ((box.y1 - box.y0) / preview.height!) * 100;
+
+          return (
+            <span
+              className="source-evidence"
+              key={region.id}
+              title={`${region.label}: ${region.text}`}
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${width}%`,
+                height: `${height}%`
+              }}
+            />
+          );
+        })}
     </div>
   );
 }
@@ -615,6 +849,25 @@ function ViewerFooter() {
   );
 }
 
+function EmptyFieldRail({ onUpload }: { onUpload: () => void }) {
+  return (
+    <aside className="fields empty-fields" aria-label="Extracted fields">
+      <div className="fields-head">
+        <h2>Extracted fields</h2>
+      </div>
+      <div className="empty-fields-body">
+        <ScanLine size={24} />
+        <strong>No extraction yet</strong>
+        <p>Upload a PDF or image and local OCR will fill this rail with source-linked fields.</p>
+        <button onClick={onUpload}>
+          <Upload size={16} />
+          Upload document
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 function FieldRail({
   document,
   validation,
@@ -628,7 +881,7 @@ function FieldRail({
   onMarkReviewed: () => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
 }) {
-  const fields = extractedFields(document.invoice);
+  const fields = extractedFields(document);
   const counts = validationCounts(validation);
   const blockingIssue = validation.find((result) => result.severity === "error");
 
@@ -742,7 +995,7 @@ interface ProductWorkspaceProps {
   activeTab: Exclude<MainTab, "vault">;
   documents: DocumentRecord[];
   mode: WorkspaceMode;
-  selectedDocument: DocumentRecord;
+  selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
   onDownloadCsv: () => void;
   onDownloadJson: () => void;
@@ -839,7 +1092,7 @@ function ValidationPage({
   onTabChange
 }: {
   documents: DocumentRecord[];
-  selectedDocument: DocumentRecord;
+  selectedDocument: DocumentRecord | null;
   onSelectDocument: (id: string) => void;
   onTabChange: (tab: MainTab) => void;
 }) {
@@ -856,6 +1109,13 @@ function ValidationPage({
         </button>
       </div>
 
+      {documents.length === 0 ? (
+        <div className="empty-product-state">
+          <FileText size={28} />
+          <strong>No documents to validate</strong>
+          <p>Upload an invoice first, then this ledger will show every extraction and math rule.</p>
+        </div>
+      ) : (
       <div className="ledger-layout">
         <div className="ledger-list">
           {documents.map((document) => {
@@ -864,7 +1124,7 @@ function ValidationPage({
             return (
               <button
                 key={document.id}
-                className={document.id === selectedDocument.id ? "selected" : ""}
+                className={document.id === selectedDocument?.id ? "selected" : ""}
                 onClick={() => onSelectDocument(document.id)}
               >
                 <span>{document.fileName}</span>
@@ -885,7 +1145,7 @@ function ValidationPage({
             </tr>
           </thead>
           <tbody>
-            {validateDocument(selectedDocument).map((result) => (
+            {(selectedDocument ? validateDocument(selectedDocument) : []).map((result) => (
               <tr key={result.id} className={result.severity}>
                 <td>{result.rule}</td>
                 <td>{result.expected}</td>
@@ -897,6 +1157,7 @@ function ValidationPage({
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
@@ -913,7 +1174,7 @@ function ExportsPage({
 }: {
   documents: DocumentRecord[];
   mode: WorkspaceMode;
-  selectedDocument: DocumentRecord;
+  selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
   onDownloadCsv: () => void;
   onDownloadJson: () => void;
@@ -936,9 +1197,15 @@ function ExportsPage({
             Import docs
           </button>
           <button
-            disabled={!canExportCsv}
+            disabled={!canExportCsv || documents.length === 0}
             onClick={onDownloadCsv}
-            title={canExportCsv ? "Export reviewed records as CSV." : "Resolve blocking validation errors before CSV export."}
+            title={
+              documents.length === 0
+                ? "Upload documents before exporting CSV."
+                : canExportCsv
+                  ? "Export reviewed records as CSV."
+                  : "Resolve blocking validation errors before CSV export."
+            }
           >
             <Download size={16} />
             Export CSV
@@ -970,19 +1237,29 @@ function ExportsPage({
           </section>
         ) : null}
 
-        <section className="export-card">
-          <FileJson size={20} />
-          <div>
-            <strong>{selectedDocument.fileName}</strong>
-            <p>
-              {counts.errors} errors, {counts.warnings} warnings. JSON includes invoice fields, validation,
-              and evidence IDs.
-            </p>
-          </div>
-          <button className="secondary" onClick={onDownloadJson}>
-            Download JSON
-          </button>
-        </section>
+        {selectedDocument ? (
+          <section className="export-card">
+            <FileJson size={20} />
+            <div>
+              <strong>{selectedDocument.fileName}</strong>
+              <p>
+                {counts.errors} errors, {counts.warnings} warnings. JSON includes invoice fields, validation,
+                and evidence IDs.
+              </p>
+            </div>
+            <button className="secondary" onClick={onDownloadJson}>
+              Download JSON
+            </button>
+          </section>
+        ) : (
+          <section className="export-card">
+            <FileJson size={20} />
+            <div>
+              <strong>No document selected</strong>
+              <p>Upload an invoice to create evidence JSON and CSV exports.</p>
+            </div>
+          </section>
+        )}
 
         {exportPresets.map((preset) => (
           <section className="export-card" key={preset.id}>
@@ -999,7 +1276,7 @@ function ExportsPage({
         ))}
       </div>
 
-      <pre className="json-preview">{exportDocumentJson(selectedDocument)}</pre>
+      <pre className="json-preview">{selectedDocument ? exportDocumentJson(selectedDocument) : "{}"}</pre>
       <p className="export-footnote">{documents.length} local documents are available for batch export.</p>
     </section>
   );
@@ -1152,14 +1429,57 @@ function readDocuments(): DocumentRecord[] {
     const stored = localStorage.getItem(storageKey);
 
     if (!stored) {
-      return seedDocuments;
+      return [];
     }
 
     const parsed = JSON.parse(stored) as DocumentRecord[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed.map(normalizeDocument) : seedDocuments;
+    return Array.isArray(parsed)
+      ? parsed
+          .map(normalizeDocument)
+          .filter((document) => !isLegacyDemoDocument(document))
+      : [];
   } catch {
-    return seedDocuments;
+    return [];
   }
+}
+
+function isLegacyDemoDocument(document: DocumentRecord): boolean {
+  if (document.source === "sample") {
+    return true;
+  }
+
+  if (document.id.startsWith("fixture-") && !document.sourcePreview) {
+    return true;
+  }
+
+  if (document.source === "upload" && !document.ocr && !document.sourcePreview) {
+    return true;
+  }
+
+  return false;
+}
+
+function prepareDocumentForStorage(document: DocumentRecord, compact = false): DocumentRecord {
+  const normalized = normalizeDocument(document);
+
+  return {
+    ...normalized,
+    processingMessage: normalized.status === "processing" ? "Processing was interrupted. Upload again to rerun OCR." : normalized.processingMessage,
+    status: normalized.status === "processing" ? "queued" : normalized.status,
+    sourcePreview: normalized.sourcePreview
+      ? {
+          ...normalized.sourcePreview,
+          image: undefined,
+          note: normalized.sourcePreview.image ? "Source preview is session-only. Upload the file again to rerun OCR." : normalized.sourcePreview.note
+        }
+      : undefined,
+    ocr: normalized.ocr
+      ? {
+          ...normalized.ocr,
+          text: compact ? "" : normalized.ocr.text
+        }
+      : undefined
+  };
 }
 
 function downloadText(fileName: string, text: string, type: string) {

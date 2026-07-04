@@ -25,6 +25,7 @@ Fallback video: [fieldmark-demo.webm](docs/media/fieldmark-demo.webm)
 ## What Exists
 
 - Local vault review bench with document queue, PDF-style viewer, source evidence highlights, editable extracted fields, scan-quality checks, and sticky approval actions.
+- Browser-local OCR for uploaded PDFs and images using Tesseract.js with a vendored English language model in `public/tessdata`.
 - Deterministic invoice validation for totals, line-item sums, required evidence, due-date order, and scan-quality blockers.
 - Schema workspace for field paths, aliases, data kinds, evidence requirements, and schema suggestions.
 - Validation ledger across all documents.
@@ -73,12 +74,14 @@ The generator also writes `src/generatedFixtures.ts`, which powers the in-app Fi
 src/
   App.tsx                product UI
   domain.ts             invoice, validation, scan-quality, export logic
+  localExtraction.ts    browser-local OCR, PDF rendering, invoice text parsing
   fixtureDocuments.ts   fixture-to-document conversion and suite summary
   generatedFixtures.ts  generated fixture catalog
   *.test.ts             validation and fixture coverage
 public/
   brand/                logo, mark, banner SVGs
   fixtures/invoices/    generated test invoices and manifests
+  tessdata/             vendored English OCR language data
 docs/
   media/                README banner, screenshots, demo video
   qa/                   browser QA captures
@@ -86,9 +89,9 @@ docs/
 
 ## Production Boundary
 
-FieldMark’s production code currently ships the local-first review workflow, schema/validation/export surfaces, scan-quality checks, fixture lab, deterministic document validation, generated test materials, and demo media.
+FieldMark's production code currently ships the local-first review workflow, browser-local OCR intake, schema/validation/export surfaces, scan-quality checks, fixture lab, deterministic document validation, generated test materials, and demo media.
 
-The extraction adapter is intentionally isolated from validation. The next backend/native milestone is wiring a real local OCR/VLM provider, such as PaddleOCR, Apple Vision, or another Mac Mini-friendly local model, into the same document records and fixture suite.
+The extraction adapter is intentionally isolated from validation. The current browser adapter runs Tesseract.js locally for English OCR and maps text into evidence-linked invoice JSON. A future native adapter can swap in PaddleOCR, Apple Vision, or a local VLM for stronger layout understanding without rewriting validation or exports.
 
 ## Privacy Modes
 

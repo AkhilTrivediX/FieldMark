@@ -48,8 +48,49 @@ export interface DocumentRecord {
   category: string;
   status: DocumentStatus;
   source: "sample" | "upload" | "import";
+  mimeType?: string;
+  processingMessage?: string;
+  sourcePreview?: DocumentSourcePreview;
+  ocr?: OcrProfile;
+  evidenceRegions?: EvidenceRegion[];
   scanQuality: ScanQualityProfile;
   invoice: InvoiceRecord;
+}
+
+export interface DocumentSourcePreview {
+  kind: "image" | "pdf" | "text" | "unavailable";
+  image?: string;
+  text?: string;
+  width?: number;
+  height?: number;
+  page?: number;
+  mimeType?: string;
+  note?: string;
+}
+
+export interface OcrProfile {
+  engine: string;
+  status: "pending" | "processing" | "complete" | "failed";
+  text: string;
+  confidence: number | null;
+  processedAt?: string;
+  elapsedMs?: number;
+  error?: string;
+}
+
+export interface EvidenceRegion {
+  id: string;
+  fieldKey: ExtractedField["key"];
+  label: string;
+  text: string;
+  confidence: number | null;
+  page: number;
+  bbox?: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  };
 }
 
 export interface ScanQualityCheck {
@@ -257,6 +298,12 @@ export const seedDocuments: DocumentRecord[] = [
         }
       ]
     },
+    evidenceRegions: [
+      sampleEvidence("vendorName", "Vendor name", "ACME SUPPLIES PVT. LTD.", 98),
+      sampleEvidence("invoiceNumber", "Invoice number", "INV-2048", 99),
+      sampleEvidence("invoiceDate", "Invoice date", "02 Jul 2026", 99),
+      sampleEvidence("invoiceTotal", "Invoice total", "4,820.00", 99)
+    ],
     invoice: {
       vendorName: "ACME SUPPLIES PVT. LTD.",
       vendorGstin: "27AABCA1234B1Z5",
@@ -345,6 +392,12 @@ function createCompanionDocument(
     status,
     source: "sample",
     scanQuality: cleanScanQuality,
+    evidenceRegions: [
+      sampleEvidence("vendorName", "Vendor name", seedInvoiceBase.vendorName, 98),
+      sampleEvidence("invoiceNumber", "Invoice number", fileName.replace(".pdf", ""), 99),
+      sampleEvidence("invoiceDate", "Invoice date", seedInvoiceBase.invoiceDate, 99),
+      sampleEvidence("invoiceTotal", "Invoice total", total.toFixed(2), 99)
+    ],
     invoice: {
       ...seedInvoiceBase,
       invoiceNumber: fileName.replace(".pdf", ""),
@@ -356,6 +409,22 @@ function createCompanionDocument(
         invoiceTotal: roundMoney(subtotal + taxTotal + shipping)
       }
     }
+  };
+}
+
+function sampleEvidence(
+  fieldKey: ExtractedField["key"],
+  label: string,
+  text: string,
+  confidence: number
+): EvidenceRegion {
+  return {
+    id: `sample-${String(fieldKey)}`,
+    fieldKey,
+    label,
+    text,
+    confidence,
+    page: 1
   };
 }
 
@@ -381,9 +450,28 @@ export function lineItemSubtotal(invoice: InvoiceRecord): number {
 
 export function validateInvoice(invoice: InvoiceRecord): ValidationResult[] {
   const results: ValidationResult[] = [];
+  const requiredFields = [
+    ["vendorName", "vendor name", invoice.vendorName],
+    ["invoiceNumber", "invoice number", invoice.invoiceNumber],
+    ["invoiceDate", "invoice date", invoice.invoiceDate],
+    ["amounts.invoiceTotal", "invoice total", invoice.amounts.invoiceTotal > 0 ? invoice.amounts.invoiceTotal.toString() : ""]
+  ] as const;
+  const missingFields = requiredFields.filter(([, , value]) => value.trim().length === 0);
   const expectedTotal = calculatedTotal(invoice);
   const actualTotal = roundMoney(invoice.amounts.invoiceTotal);
   const difference = roundMoney(actualTotal - expectedTotal);
+
+  results.push({
+    id: "required-fields",
+    severity: missingFields.length > 0 ? "error" : "pass",
+    title: missingFields.length > 0 ? "Required fields missing" : "Required fields present",
+    fieldPath: "invoice",
+    rule: "vendor, invoice number, invoice date, and invoice total are required",
+    expected: "complete required fields",
+    actual: missingFields.length > 0 ? missingFields.map(([, label]) => label).join(", ") : "complete",
+    source: "schema",
+    blocksApproval: missingFields.length > 0
+  });
 
   results.push({
     id: "total-mismatch",
@@ -414,18 +502,6 @@ export function validateInvoice(invoice: InvoiceRecord): ValidationResult[] {
   });
 
   results.push({
-    id: "required-evidence",
-    severity: "pass",
-    title: "Required evidence present",
-    fieldPath: "evidence",
-    rule: "vendor, invoice number, date, subtotal and total each have source boxes",
-    expected: "required",
-    actual: "present",
-    source: "evidence",
-    blocksApproval: false
-  });
-
-  results.push({
     id: "date-order",
     severity: "pass",
     title: "Date consistency passed",
@@ -441,6 +517,20 @@ export function validateInvoice(invoice: InvoiceRecord): ValidationResult[] {
 }
 
 export function validateDocument(document: DocumentRecord): ValidationResult[] {
+  const requiredEvidence: EvidenceRegion["fieldKey"][] = ["vendorName", "invoiceNumber", "invoiceDate", "invoiceTotal"];
+  const evidenceKeys = new Set((document.evidenceRegions ?? []).map((region) => region.fieldKey));
+  const missingEvidence = requiredEvidence.filter((key) => !evidenceKeys.has(key));
+  const evidenceResult: ValidationResult = {
+    id: "required-evidence",
+    severity: missingEvidence.length > 0 ? "error" : "pass",
+    title: missingEvidence.length > 0 ? "Required source evidence missing" : "Required evidence present",
+    fieldPath: "evidence",
+    rule: "vendor, invoice number, date, and total each need source evidence",
+    expected: "source-linked fields",
+    actual: missingEvidence.length > 0 ? missingEvidence.join(", ") : "present",
+    source: "evidence",
+    blocksApproval: missingEvidence.length > 0
+  };
   const scanResults: ValidationResult[] = document.scanQuality.checks
     .filter((check) => check.severity !== "pass")
     .map((check) => ({
@@ -455,7 +545,7 @@ export function validateDocument(document: DocumentRecord): ValidationResult[] {
       blocksApproval: check.severity === "error"
     }));
 
-  return [...validateInvoice(document.invoice), ...scanResults];
+  return [...validateInvoice(document.invoice), evidenceResult, ...scanResults];
 }
 
 export function validationCounts(results: ValidationResult[]) {
@@ -466,20 +556,45 @@ export function validationCounts(results: ValidationResult[]) {
   };
 }
 
-export function extractedFields(invoice: InvoiceRecord): ExtractedField[] {
+export function extractedFields(source: InvoiceRecord | DocumentRecord): ExtractedField[] {
+  const invoice = "invoice" in source ? source.invoice : source;
+  const evidence = "invoice" in source ? source.evidenceRegions ?? [] : [];
+  const fieldConfidence = (key: ExtractedField["key"], fallback: number) => {
+    const match = evidence.find((region) => region.fieldKey === key);
+
+    if (match?.confidence == null) {
+      return fallback;
+    }
+
+    return Math.max(1, Math.min(99, Math.round(match.confidence)));
+  };
+  const fieldKind = (key: ExtractedField["key"], fallback: FieldConfidence = "high"): FieldConfidence => {
+    const confidence = fieldConfidence(key, 0);
+
+    if (confidence >= 85) {
+      return fallback;
+    }
+
+    if (confidence >= 65) {
+      return "medium";
+    }
+
+    return "check";
+  };
+
   return [
-    field("vendorName", "Vendor name", invoice.vendorName, 99, "high", "vendor"),
-    field("vendorGstin", "Vendor GSTIN", invoice.vendorGstin, 98, "high", "vendor-gstin"),
-    field("invoiceNumber", "Invoice number", invoice.invoiceNumber, 99, "high", "invoice-number"),
-    field("invoiceDate", "Invoice date", invoice.invoiceDate, 99, "high", "invoice-date"),
-    field("dueDate", "Due date", invoice.dueDate, 98, "high", "due-date"),
-    field("customerName", "Customer name", invoice.customerName, 98, "high", "customer"),
-    field("customerGstin", "Customer GSTIN", invoice.customerGstin, 98, "high", "customer-gstin"),
-    amountField("subtotal", "Subtotal", invoice.amounts.subtotal, 99),
-    amountField("taxTotal", "Tax total", invoice.amounts.taxTotal, 99),
-    amountField("shipping", "Shipping", invoice.amounts.shipping, 99),
-    amountField("discount", "Discount", invoice.amounts.discount, 100),
-    amountField("invoiceTotal", "Invoice total (printed)", invoice.amounts.invoiceTotal, 99),
+    field("vendorName", "Vendor name", invoice.vendorName, fieldConfidence("vendorName", invoice.vendorName ? 72 : 0), fieldKind("vendorName"), "vendorName"),
+    field("vendorGstin", "Vendor GSTIN", invoice.vendorGstin, fieldConfidence("vendorGstin", invoice.vendorGstin ? 72 : 0), fieldKind("vendorGstin"), "vendorGstin"),
+    field("invoiceNumber", "Invoice number", invoice.invoiceNumber, fieldConfidence("invoiceNumber", invoice.invoiceNumber ? 72 : 0), fieldKind("invoiceNumber"), "invoiceNumber"),
+    field("invoiceDate", "Invoice date", invoice.invoiceDate, fieldConfidence("invoiceDate", invoice.invoiceDate ? 72 : 0), fieldKind("invoiceDate"), "invoiceDate"),
+    field("dueDate", "Due date", invoice.dueDate, fieldConfidence("dueDate", invoice.dueDate ? 68 : 0), fieldKind("dueDate"), "dueDate"),
+    field("customerName", "Customer name", invoice.customerName, fieldConfidence("customerName", invoice.customerName ? 68 : 0), fieldKind("customerName"), "customerName"),
+    field("customerGstin", "Customer GSTIN", invoice.customerGstin, fieldConfidence("customerGstin", invoice.customerGstin ? 68 : 0), fieldKind("customerGstin"), "customerGstin"),
+    amountField("subtotal", "Subtotal", invoice.amounts.subtotal, fieldConfidence("subtotal", invoice.amounts.subtotal > 0 ? 72 : 0), fieldKind("subtotal")),
+    amountField("taxTotal", "Tax total", invoice.amounts.taxTotal, fieldConfidence("taxTotal", invoice.amounts.taxTotal > 0 ? 70 : 0), fieldKind("taxTotal")),
+    amountField("shipping", "Shipping", invoice.amounts.shipping, fieldConfidence("shipping", evidence.some((region) => region.fieldKey === "shipping") ? 70 : 0), fieldKind("shipping")),
+    amountField("discount", "Discount", invoice.amounts.discount, fieldConfidence("discount", evidence.some((region) => region.fieldKey === "discount") ? 70 : 0), fieldKind("discount")),
+    amountField("invoiceTotal", "Invoice total (printed)", invoice.amounts.invoiceTotal, fieldConfidence("invoiceTotal", invoice.amounts.invoiceTotal > 0 ? 72 : 0), fieldKind("invoiceTotal")),
     field("calculatedTotal", "Calculated total", formatMoney(calculatedTotal(invoice)), null, "derived", null)
   ];
 }
@@ -499,9 +614,10 @@ function amountField(
   key: keyof InvoiceAmounts,
   label: string,
   value: number,
-  confidence: number
+  confidence: number,
+  confidenceKind: FieldConfidence = "high"
 ): ExtractedField {
-  return field(key, label, formatMoney(value), confidence, "high", key);
+  return field(key, label, formatMoney(value), confidence, confidenceKind, key);
 }
 
 export function updateInvoiceField(
@@ -535,27 +651,53 @@ export function parseMoney(value: string): number {
   return Number.isFinite(parsed) ? roundMoney(parsed) : 0;
 }
 
-export function createUploadedDocument(fileName: string): DocumentRecord {
-  const base = seedDocuments[0]!;
+export function createUploadedDocument(
+  fileName: string,
+  options: { mimeType?: string; pages?: number } = {}
+): DocumentRecord {
   const now = new Date();
   const scanQuality = classifyScanQuality(fileName);
 
   return {
-    ...base,
     id: `upload-${now.getTime()}-${Math.random().toString(16).slice(2)}`,
     fileName,
     uploadedAt: "Just now",
+    pages: options.pages ?? 1,
+    category: "Purchase invoice",
     status: "queued",
     source: "upload",
+    mimeType: options.mimeType,
+    processingMessage: "Waiting for local OCR",
+    ocr: {
+      engine: "local",
+      status: "pending",
+      text: "",
+      confidence: null
+    },
     scanQuality,
-    invoice: {
-      ...base.invoice,
-      invoiceNumber: fileName.replace(/\.[^.]+$/, "").toUpperCase(),
-      vendorName: "Unreviewed supplier",
-      vendorGstin: "",
-      customerName: "Imported workspace",
-      customerGstin: "",
-      amounts: { ...base.invoice.amounts }
+    invoice: createEmptyInvoice(fileName)
+  };
+}
+
+export function createEmptyInvoice(fileName: string): InvoiceRecord {
+  return {
+    vendorName: "",
+    vendorGstin: "",
+    vendorAddress: [],
+    customerName: "",
+    customerGstin: "",
+    customerAddress: [],
+    invoiceNumber: "",
+    invoiceDate: "",
+    dueDate: "",
+    schemaVersion: "purchase-invoice-v13",
+    lineItems: [],
+    amounts: {
+      subtotal: 0,
+      taxTotal: 0,
+      shipping: 0,
+      discount: 0,
+      invoiceTotal: 0
     }
   };
 }
@@ -644,13 +786,20 @@ export function classifyScanQuality(fileName: string): ScanQualityProfile {
 }
 
 export function normalizeDocument(document: DocumentRecord): DocumentRecord {
+  const invoice = document.invoice ?? createEmptyInvoice(document.fileName);
+
   return {
     ...document,
     scanQuality: document.scanQuality ?? classifyScanQuality(document.fileName),
+    evidenceRegions: (document.evidenceRegions ?? []).map((region) => ({ ...region, bbox: region.bbox ? { ...region.bbox } : undefined })),
+    ocr: document.ocr ? { ...document.ocr } : undefined,
+    sourcePreview: document.sourcePreview ? { ...document.sourcePreview } : undefined,
     invoice: {
-      ...document.invoice,
-      amounts: { ...document.invoice.amounts },
-      lineItems: document.invoice.lineItems.map((item) => ({ ...item }))
+      ...invoice,
+      amounts: { ...invoice.amounts },
+      vendorAddress: [...(invoice.vendorAddress ?? [])],
+      customerAddress: [...(invoice.customerAddress ?? [])],
+      lineItems: (invoice.lineItems ?? []).map((item) => ({ ...item }))
     }
   };
 }
@@ -666,9 +815,12 @@ export function exportDocumentJson(document: DocumentRecord): string {
         category: normalized.category,
         pages: normalized.pages,
         source: normalized.source,
+        mimeType: normalized.mimeType,
         scanQuality: normalized.scanQuality
       },
       invoice: normalized.invoice,
+      ocr: normalized.ocr,
+      evidence: normalized.evidenceRegions ?? [],
       validation: validateDocument(normalized)
     },
     null,

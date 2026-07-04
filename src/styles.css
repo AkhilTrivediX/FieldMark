@@ -242,6 +242,31 @@ input:focus-visible {
   padding: 0 6px 20px;
 }
 
+.doc-empty {
+  align-items: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin: 4px 14px;
+  min-height: 170px;
+  padding: 18px;
+  text-align: center;
+}
+
+.doc-empty button {
+  background: var(--carbon);
+  border: 1px solid var(--carbon);
+  border-radius: 7px;
+  color: white;
+  font-size: 13px;
+  font-weight: 760;
+  height: 34px;
+  padding: 0 12px;
+}
+
 .doc-card {
   align-items: center;
   background: transparent;
@@ -442,6 +467,149 @@ input:focus-visible {
   min-height: 0;
   overflow: hidden;
   padding: 10px 28px 10px 40px;
+}
+
+.empty-viewer {
+  align-content: center;
+  display: grid;
+  justify-items: center;
+  min-height: calc(100vh - 64px);
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-mark {
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-tight);
+  display: inline-flex;
+  height: 58px;
+  justify-content: center;
+  width: 58px;
+}
+
+.empty-viewer h1 {
+  font-size: 25px;
+  letter-spacing: 0;
+  margin: 18px 0 8px;
+}
+
+.empty-viewer p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 18px;
+  max-width: 470px;
+}
+
+.empty-viewer button,
+.empty-fields-body button {
+  align-items: center;
+  background: var(--carbon);
+  border: 1px solid var(--carbon);
+  border-radius: 7px;
+  color: white;
+  display: inline-flex;
+  font-weight: 760;
+  gap: 8px;
+  height: 42px;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.source-page {
+  background: var(--bg);
+  box-shadow: var(--shadow-page);
+  line-height: 0;
+  max-width: min(820px, 100%);
+  position: relative;
+}
+
+.source-page img {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  width: 100%;
+}
+
+.source-processing {
+  align-items: center;
+  background: oklch(0.18 0.026 255 / 0.9);
+  border-radius: 7px;
+  color: white;
+  display: inline-flex;
+  gap: 8px;
+  left: 14px;
+  line-height: 1;
+  padding: 9px 11px;
+  position: absolute;
+  top: 14px;
+  z-index: 3;
+}
+
+.source-processing svg {
+  animation: spin 1.1s linear infinite;
+}
+
+.evidence-overlay {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.source-evidence {
+  background: oklch(0.64 0.14 225 / 0.14);
+  border: 2px solid oklch(0.62 0.16 230);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.76);
+  position: absolute;
+}
+
+.text-source {
+  line-height: 1.5;
+  max-width: min(780px, 100%);
+  min-height: 640px;
+  padding: 28px;
+  width: 780px;
+}
+
+.text-source pre {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 13px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.unavailable-source {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  line-height: 1.45;
+  min-height: 520px;
+  padding: 42px;
+  text-align: center;
+  width: min(780px, 100%);
+}
+
+.unavailable-source h2 {
+  font-size: 22px;
+  letter-spacing: 0;
+  margin: 14px 0 6px;
+}
+
+.unavailable-source p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 430px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .invoice-page {
@@ -685,6 +853,32 @@ input:focus-visible {
   height: calc(100vh - 128px);
   margin-top: 64px;
   min-height: 692px;
+}
+
+.empty-fields {
+  align-content: start;
+}
+
+.empty-fields-body {
+  align-content: center;
+  color: var(--muted);
+  display: grid;
+  justify-items: center;
+  min-height: 420px;
+  padding: 28px;
+  text-align: center;
+}
+
+.empty-fields-body strong {
+  color: var(--ink);
+  font-size: 17px;
+  margin-top: 12px;
+}
+
+.empty-fields-body p {
+  line-height: 1.5;
+  margin: 8px 0 18px;
+  max-width: 310px;
 }
 
 .fields-head {
@@ -1087,6 +1281,29 @@ input:focus-visible {
   display: grid;
   gap: 16px;
   grid-template-columns: 290px minmax(0, 1fr);
+}
+
+.empty-product-state {
+  align-content: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  justify-items: center;
+  min-height: 360px;
+  padding: 28px;
+  text-align: center;
+}
+
+.empty-product-state strong {
+  color: var(--ink);
+  font-size: 18px;
+  margin-top: 12px;
+}
+
+.empty-product-state p {
+  line-height: 1.5;
+  margin: 8px 0 0;
 }
 
 .ledger-list {
