@@ -1,0 +1,23 @@
+{
+  "id": "clean-desk-invoice",
+  "image": "clean-desk-invoice.svg",
+  "fileName": "clean-desk-invoice.svg",
+  "tags": [],
+  "expected": {
+    "vendorName": "ACME SUPPLIES PVT. LTD.",
+    "vendorGstin": "27AABCA1234B1Z5",
+    "customerName": "BrightBuild Constructions",
+    "customerGstin": "29ABCDE1234F1Z5",
+    "invoiceNumber": "FM-1001",
+    "invoiceDate": "02 Jul 2026",
+    "dueDate": "16 Jul 2026",
+    "subtotal": 4240,
+    "taxTotal": 424,
+    "shipping": 120,
+    "discount": 0,
+    "invoiceTotal": 4784,
+    "calculatedTotal": 4784,
+    "hasTotalMismatch": false,
+    "hasBlockingScanIssue": false
+  }
+}

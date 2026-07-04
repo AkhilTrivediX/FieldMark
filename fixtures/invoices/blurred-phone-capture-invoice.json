@@ -1,0 +1,26 @@
+{
+  "id": "blurred-phone-capture-invoice",
+  "image": "blurred-phone-capture-invoice.svg",
+  "fileName": "blurred-phone-capture-invoice.svg",
+  "tags": [
+    "blur",
+    "phone"
+  ],
+  "expected": {
+    "vendorName": "ACME SUPPLIES PVT. LTD.",
+    "vendorGstin": "27AABCA1234B1Z5",
+    "customerName": "BrightBuild Constructions",
+    "customerGstin": "29ABCDE1234F1Z5",
+    "invoiceNumber": "FM-1003",
+    "invoiceDate": "02 Jul 2026",
+    "dueDate": "16 Jul 2026",
+    "subtotal": 9100,
+    "taxTotal": 910,
+    "shipping": 160,
+    "discount": 0,
+    "invoiceTotal": 10170,
+    "calculatedTotal": 10170,
+    "hasTotalMismatch": false,
+    "hasBlockingScanIssue": false
+  }
+}

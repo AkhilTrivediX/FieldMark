@@ -1,0 +1,27 @@
+{
+  "id": "washed-blur-rotated-invoice",
+  "image": "washed-blur-rotated-invoice.svg",
+  "fileName": "washed-blur-rotated-invoice.svg",
+  "tags": [
+    "washed",
+    "blur",
+    "rotated"
+  ],
+  "expected": {
+    "vendorName": "ACME SUPPLIES PVT. LTD.",
+    "vendorGstin": "27AABCA1234B1Z5",
+    "customerName": "BrightBuild Constructions",
+    "customerGstin": "29ABCDE1234F1Z5",
+    "invoiceNumber": "FM-1011",
+    "invoiceDate": "02 Jul 2026",
+    "dueDate": "16 Jul 2026",
+    "subtotal": 6320,
+    "taxTotal": 632,
+    "shipping": 110,
+    "discount": 0,
+    "invoiceTotal": 7062,
+    "calculatedTotal": 7062,
+    "hasTotalMismatch": false,
+    "hasBlockingScanIssue": false
+  }
+}

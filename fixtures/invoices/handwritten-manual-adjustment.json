@@ -1,0 +1,26 @@
+{
+  "id": "handwritten-manual-adjustment",
+  "image": "handwritten-manual-adjustment.svg",
+  "fileName": "handwritten-manual-adjustment.svg",
+  "tags": [
+    "handwritten",
+    "manual"
+  ],
+  "expected": {
+    "vendorName": "ACME SUPPLIES PVT. LTD.",
+    "vendorGstin": "27AABCA1234B1Z5",
+    "customerName": "BrightBuild Constructions",
+    "customerGstin": "29ABCDE1234F1Z5",
+    "invoiceNumber": "FM-1008",
+    "invoiceDate": "02 Jul 2026",
+    "dueDate": "16 Jul 2026",
+    "subtotal": 4020,
+    "taxTotal": 402,
+    "shipping": 60,
+    "discount": 100,
+    "invoiceTotal": 4382,
+    "calculatedTotal": 4382,
+    "hasTotalMismatch": false,
+    "hasBlockingScanIssue": false
+  }
+}

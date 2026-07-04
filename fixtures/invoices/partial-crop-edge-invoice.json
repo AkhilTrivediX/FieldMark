@@ -1,0 +1,27 @@
+{
+  "id": "partial-crop-edge-invoice",
+  "image": "partial-crop-edge-invoice.svg",
+  "fileName": "partial-crop-edge-invoice.svg",
+  "tags": [
+    "partial",
+    "crop",
+    "edge"
+  ],
+  "expected": {
+    "vendorName": "ACME SUPPLIES PVT. LTD.",
+    "vendorGstin": "27AABCA1234B1Z5",
+    "customerName": "BrightBuild Constructions",
+    "customerGstin": "29ABCDE1234F1Z5",
+    "invoiceNumber": "FM-1006",
+    "invoiceDate": "02 Jul 2026",
+    "dueDate": "16 Jul 2026",
+    "subtotal": 11800,
+    "taxTotal": 1180,
+    "shipping": 220,
+    "discount": 0,
+    "invoiceTotal": 13200,
+    "calculatedTotal": 13200,
+    "hasTotalMismatch": false,
+    "hasBlockingScanIssue": true
+  }
+}

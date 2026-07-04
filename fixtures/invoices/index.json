@@ -1,0 +1,62 @@
+[
+  {
+    "id": "clean-desk-invoice",
+    "image": "clean-desk-invoice.svg",
+    "manifest": "clean-desk-invoice.json"
+  },
+  {
+    "id": "low-contrast-faded-invoice",
+    "image": "low-contrast-faded-invoice.svg",
+    "manifest": "low-contrast-faded-invoice.json"
+  },
+  {
+    "id": "blurred-phone-capture-invoice",
+    "image": "blurred-phone-capture-invoice.svg",
+    "manifest": "blurred-phone-capture-invoice.json"
+  },
+  {
+    "id": "rotated-skew-invoice",
+    "image": "rotated-skew-invoice.svg",
+    "manifest": "rotated-skew-invoice.json"
+  },
+  {
+    "id": "shadow-phone-photo-invoice",
+    "image": "shadow-phone-photo-invoice.svg",
+    "manifest": "shadow-phone-photo-invoice.json"
+  },
+  {
+    "id": "partial-crop-edge-invoice",
+    "image": "partial-crop-edge-invoice.svg",
+    "manifest": "partial-crop-edge-invoice.json"
+  },
+  {
+    "id": "tiny-small-font-statement",
+    "image": "tiny-small-font-statement.svg",
+    "manifest": "tiny-small-font-statement.json"
+  },
+  {
+    "id": "handwritten-manual-adjustment",
+    "image": "handwritten-manual-adjustment.svg",
+    "manifest": "handwritten-manual-adjustment.json"
+  },
+  {
+    "id": "wide-table-dense-invoice",
+    "image": "wide-table-dense-invoice.svg",
+    "manifest": "wide-table-dense-invoice.json"
+  },
+  {
+    "id": "mismatched-total-invoice",
+    "image": "mismatched-total-invoice.svg",
+    "manifest": "mismatched-total-invoice.json"
+  },
+  {
+    "id": "washed-blur-rotated-invoice",
+    "image": "washed-blur-rotated-invoice.svg",
+    "manifest": "washed-blur-rotated-invoice.json"
+  },
+  {
+    "id": "camera-shadow-tiny-receipt",
+    "image": "camera-shadow-tiny-receipt.svg",
+    "manifest": "camera-shadow-tiny-receipt.json"
+  }
+]
