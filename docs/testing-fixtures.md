@@ -1,6 +1,6 @@
 # Fixture Testing
 
-FieldMark includes generated invoice fixtures in `fixtures/invoices`.
+FieldMark includes generated invoice fixtures in `public/fixtures/invoices`.
 
 The fixtures are intentionally varied:
 
@@ -15,6 +15,6 @@ The fixtures are intentionally varied:
 - wide table invoice
 - invoice with a deliberate total mismatch
 
-Each fixture has an SVG image and a JSON manifest. The manifest records expected invoice fields, amounts, evidence IDs, and scan-quality labels. Tests use the manifests to verify validation, exports, upload intake, and correction flows.
+Each fixture has an SVG image and a JSON manifest. The manifest records expected invoice fields, amounts, evidence IDs, and scan-quality labels. Tests use the manifests to verify validation, exports, upload intake, and correction flows. The app also reads the generated TypeScript catalog in `src/generatedFixtures.ts` to power the in-app Fixture lab.
 
 This does not claim production OCR accuracy yet. It gives us a repeatable fixture bank for comparing PaddleOCR, Tesseract, Apple Vision, or a small local VLM later without rewriting the product validation layer.

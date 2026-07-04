@@ -104,6 +104,11 @@ export interface ExportPreset {
   fields: string[];
 }
 
+export interface ExportReadiness {
+  canExportCsv: boolean;
+  blockedDocuments: DocumentRecord[];
+}
+
 export const schemaFields: SchemaField[] = [
   {
     path: "vendor.name",
@@ -699,6 +704,17 @@ export function exportDocumentsCsv(documents: DocumentRecord[]): string {
   ];
 
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+export function exportReadiness(documents: DocumentRecord[]): ExportReadiness {
+  const blockedDocuments = documents
+    .map(normalizeDocument)
+    .filter((document) => validationCounts(validateDocument(document)).errors > 0);
+
+  return {
+    canExportCsv: blockedDocuments.length === 0,
+    blockedDocuments
+  };
 }
 
 function csvCell(value: string): string {

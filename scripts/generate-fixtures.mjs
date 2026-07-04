@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const fixtureDir = join(root, "fixtures", "invoices");
+const fixtureDir = join(root, "public", "fixtures", "invoices");
+const generatedCatalog = join(root, "src", "generatedFixtures.ts");
 
 const cases = [
   fixture("clean-desk-invoice", "FM-1001", 4240, 424, 120, 0, 4784, []),
@@ -33,6 +34,7 @@ for (const item of cases) {
 }
 
 await writeFile(join(fixtureDir, "index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
+await writeFile(generatedCatalog, renderCatalog(cases), "utf8");
 
 console.log(`Generated ${cases.length} FieldMark invoice fixtures in ${fixtureDir}`);
 
@@ -207,4 +209,57 @@ function money(value) {
 
 function round(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function renderCatalog(items) {
+  const catalog = items.map((item) => ({
+    id: item.id,
+    image: `/fixtures/invoices/${item.id}.svg`,
+    fileName: `${item.id}.svg`,
+    tags: item.tags,
+    expected: {
+      vendorName: item.vendorName,
+      vendorGstin: item.vendorGstin,
+      customerName: item.customerName,
+      customerGstin: item.customerGstin,
+      invoiceNumber: item.invoiceNumber,
+      invoiceDate: item.invoiceDate,
+      dueDate: item.dueDate,
+      subtotal: item.subtotal,
+      taxTotal: item.taxTotal,
+      shipping: item.shipping,
+      discount: item.discount,
+      invoiceTotal: item.invoiceTotal,
+      calculatedTotal: item.calculatedTotal,
+      hasTotalMismatch: Math.abs(item.invoiceTotal - item.calculatedTotal) > 0.009,
+      hasBlockingScanIssue: item.tags.some((tag) => ["crop", "partial", "edge"].includes(tag))
+    }
+  }));
+
+  return `export interface GeneratedFixture {
+  id: string;
+  image: string;
+  fileName: string;
+  tags: string[];
+  expected: {
+    vendorName: string;
+    vendorGstin: string;
+    customerName: string;
+    customerGstin: string;
+    invoiceNumber: string;
+    invoiceDate: string;
+    dueDate: string;
+    subtotal: number;
+    taxTotal: number;
+    shipping: number;
+    discount: number;
+    invoiceTotal: number;
+    calculatedTotal: number;
+    hasTotalMismatch: boolean;
+    hasBlockingScanIssue: boolean;
+  };
+}
+
+export const generatedFixtures = ${JSON.stringify(catalog, null, 2)} satisfies GeneratedFixture[];
+`;
 }

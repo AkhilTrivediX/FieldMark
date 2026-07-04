@@ -10,6 +10,7 @@ import {
   FileText,
   FolderOpen,
   HelpCircle,
+  Image,
   Maximize,
   Plus,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
   exportDocumentJson,
   exportDocumentsCsv,
   exportPresets,
+  exportReadiness,
   extractedFields,
   formatMoney,
   normalizeDocument,
@@ -42,8 +44,10 @@ import {
   updateInvoiceField,
   validationCounts
 } from "./domain.js";
+import { createFixtureDocument, fixtureSuiteSummary, runFixtureSuite } from "./fixtureDocuments.js";
+import { type GeneratedFixture } from "./generatedFixtures.js";
 
-type MainTab = "vault" | "schemas" | "validation" | "exports";
+type MainTab = "vault" | "schemas" | "validation" | "exports" | "lab";
 
 const storageKey = "fieldmark.workspace.v1";
 const fallbackDocument = seedDocuments[0]!;
@@ -139,6 +143,13 @@ export function App() {
     }
   }
 
+  function loadFixture(fixture: GeneratedFixture) {
+    const document = createFixtureDocument(fixture);
+    setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);
+    setSelectedId(document.id);
+    setActiveTab("vault");
+  }
+
   function downloadSelectedJson() {
     downloadText(
       `${selectedDocument.fileName.replace(/\.[^.]+$/, "")}.fieldmark.json`,
@@ -186,6 +197,7 @@ export function App() {
           validation={selectedValidation}
           onDownloadCsv={downloadCsv}
           onDownloadJson={downloadSelectedJson}
+          onLoadFixture={loadFixture}
           onModeChange={setMode}
           onSelectDocument={selectDocument}
           onTabChange={setActiveTab}
@@ -207,8 +219,8 @@ function Topbar({ activeTab, mode, onModeChange, onTabChange }: TopbarProps) {
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="brand-mark">F</span>
-        <span>Fieldmark</span>
+        <img className="brand-mark" src="/brand/fieldmark-mark.svg" alt="" />
+        <span>FieldMark</span>
       </div>
 
       <nav className="top-nav" aria-label="Main">
@@ -216,7 +228,8 @@ function Topbar({ activeTab, mode, onModeChange, onTabChange }: TopbarProps) {
           ["vault", "Local vault"],
           ["schemas", "Schemas"],
           ["validation", "Validation"],
-          ["exports", "Exports"]
+          ["exports", "Exports"],
+          ["lab", "Test lab"]
         ].map(([id, label]) => (
           <button
             key={id}
@@ -733,6 +746,7 @@ interface ProductWorkspaceProps {
   validation: ValidationResult[];
   onDownloadCsv: () => void;
   onDownloadJson: () => void;
+  onLoadFixture: (fixture: GeneratedFixture) => void;
   onModeChange: (mode: WorkspaceMode) => void;
   onSelectDocument: (id: string) => void;
   onTabChange: (tab: MainTab) => void;
@@ -762,6 +776,9 @@ function ProductWorkspace(props: ProductWorkspaceProps) {
           onModeChange={props.onModeChange}
           onUpload={props.onUpload}
         />
+      ) : null}
+      {props.activeTab === "lab" ? (
+        <TestLabPage onLoadFixture={props.onLoadFixture} onTabChange={props.onTabChange} />
       ) : null}
     </main>
   );
@@ -904,6 +921,7 @@ function ExportsPage({
   onUpload: () => void;
 }) {
   const counts = validationCounts(validation);
+  const { blockedDocuments, canExportCsv } = exportReadiness(documents);
 
   return (
     <section className="product-panel exports-page">
@@ -917,7 +935,11 @@ function ExportsPage({
             <Upload size={16} />
             Import docs
           </button>
-          <button onClick={onDownloadCsv}>
+          <button
+            disabled={!canExportCsv}
+            onClick={onDownloadCsv}
+            title={canExportCsv ? "Export reviewed records as CSV." : "Resolve blocking validation errors before CSV export."}
+          >
             <Download size={16} />
             Export CSV
           </button>
@@ -933,6 +955,20 @@ function ExportsPage({
           </div>
           <ModeSwitch mode={mode} onModeChange={onModeChange} />
         </section>
+
+        {!canExportCsv ? (
+          <section className="export-card export-card-alert">
+            <AlertCircle size={20} />
+            <div>
+              <strong>CSV export blocked</strong>
+              <p>
+                {blockedDocuments.length} document{blockedDocuments.length === 1 ? "" : "s"} need validation or
+                scan-quality review before accounting export.
+              </p>
+            </div>
+            <span className="preset-state blocked">blocked</span>
+          </section>
+        ) : null}
 
         <section className="export-card">
           <FileJson size={20} />
@@ -956,8 +992,8 @@ function ExportsPage({
               <p>{preset.destination}</p>
               <small>{preset.fields.join(", ")}</small>
             </div>
-            <span className={`preset-state ${preset.enabled ? "enabled" : ""}`}>
-              {preset.enabled ? "ready" : "draft"}
+            <span className={`preset-state ${!canExportCsv && preset.enabled ? "blocked" : preset.enabled ? "enabled" : ""}`}>
+              {!canExportCsv && preset.enabled ? "blocked" : preset.enabled ? "ready" : "draft"}
             </span>
           </section>
         ))}
@@ -965,6 +1001,148 @@ function ExportsPage({
 
       <pre className="json-preview">{exportDocumentJson(selectedDocument)}</pre>
       <p className="export-footnote">{documents.length} local documents are available for batch export.</p>
+    </section>
+  );
+}
+
+function TestLabPage({
+  onLoadFixture,
+  onTabChange
+}: {
+  onLoadFixture: (fixture: GeneratedFixture) => void;
+  onTabChange: (tab: MainTab) => void;
+}) {
+  const runs = useMemo(() => runFixtureSuite(), []);
+  const summary = useMemo(() => fixtureSuiteSummary(runs), [runs]);
+  const [selectedId, setSelectedId] = useState(runs[0]?.fixture.id ?? "");
+  const selected = runs.find((run) => run.fixture.id === selectedId) ?? runs[0]!;
+  const scanWarnings = selected.document.scanQuality.checks.filter((check) => check.severity !== "pass");
+
+  return (
+    <section className="product-panel lab-page">
+      <div className="page-heading">
+        <div>
+          <h1>Fixture lab</h1>
+          <p>Generated low-readability invoices used to test scan quality, validation, correction, and exports.</p>
+        </div>
+        <div className="heading-actions">
+          <button
+            className="secondary"
+            onClick={() => {
+              onLoadFixture(selected.fixture);
+              onTabChange("vault");
+            }}
+          >
+            <FileText size={16} />
+            Load in vault
+          </button>
+          <button>
+            <ShieldCheck size={16} />
+            {summary.total} fixtures checked
+          </button>
+        </div>
+      </div>
+
+      <div className="lab-stats" aria-label="Fixture suite summary">
+        <div>
+          <span>Total</span>
+          <strong>{summary.total}</strong>
+        </div>
+        <div>
+          <span>Clean</span>
+          <strong>{summary.clean}</strong>
+        </div>
+        <div>
+          <span>Needs review</span>
+          <strong>{summary.review}</strong>
+        </div>
+        <div>
+          <span>Blocked</span>
+          <strong>{summary.blocked}</strong>
+        </div>
+      </div>
+
+      <div className="lab-layout">
+        <div className="fixture-list" aria-label="Generated fixtures">
+          {runs.map((run) => (
+            <button
+              key={run.fixture.id}
+              className={run.fixture.id === selected.fixture.id ? "selected" : ""}
+              onClick={() => setSelectedId(run.fixture.id)}
+            >
+              <img src={run.fixture.image} alt="" />
+              <span>
+                <strong>{run.fixture.id.replace(/-/g, " ")}</strong>
+                <small>{run.fixture.tags.length > 0 ? run.fixture.tags.join(", ") : "clean source"}</small>
+              </span>
+              <span className={`fixture-outcome ${run.outcome}`}>{run.outcome}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="fixture-detail">
+          <div className="fixture-preview">
+            <img src={selected.fixture.image} alt={`${selected.fixture.id} invoice fixture`} />
+          </div>
+
+          <aside className="fixture-inspector" aria-label="Fixture inspection">
+            <div className="fixture-inspector-head">
+              <div>
+                <strong>{selected.fixture.expected.invoiceNumber}</strong>
+                <span>{selected.fixture.id.replace(/-/g, " ")}</span>
+              </div>
+              <span className={`fixture-outcome ${selected.outcome}`}>{selected.outcome}</span>
+            </div>
+
+            <dl className="fixture-metrics">
+              <div>
+                <dt>Scan score</dt>
+                <dd>{selected.document.scanQuality.score}%</dd>
+              </div>
+              <div>
+                <dt>Expected total</dt>
+                <dd>{formatMoney(selected.fixture.expected.calculatedTotal)}</dd>
+              </div>
+              <div>
+                <dt>Printed total</dt>
+                <dd>{formatMoney(selected.fixture.expected.invoiceTotal)}</dd>
+              </div>
+              <div>
+                <dt>Validation</dt>
+                <dd>
+                  {selected.errors} errors, {selected.warnings} warnings
+                </dd>
+              </div>
+            </dl>
+
+            <section className="fixture-check-block">
+              <strong>Scan-quality checks</strong>
+              <div className="scan-checks">
+                {selected.document.scanQuality.checks.map((check) => (
+                  <span className={`scan-check ${check.severity}`} key={check.id} title={check.detail}>
+                    {check.label}
+                  </span>
+                ))}
+              </div>
+              {scanWarnings.length > 0 ? (
+                <p>{scanWarnings[0]!.detail}</p>
+              ) : (
+                <p>Source quality is clean enough for evidence review.</p>
+              )}
+            </section>
+
+            <button
+              onClick={() => {
+                onLoadFixture(selected.fixture);
+                onTabChange("vault");
+              }}
+            >
+              <Image size={16} />
+              Review this document
+            </button>
+          </aside>
+        </div>
+      </div>
     </section>
   );
 }

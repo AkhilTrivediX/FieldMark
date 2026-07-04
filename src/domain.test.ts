@@ -3,6 +3,7 @@ import {
   calculatedTotal,
   exportDocumentJson,
   exportDocumentsCsv,
+  exportReadiness,
   seedDocuments,
   updateInvoiceField,
   validateInvoice,
@@ -44,5 +45,16 @@ describe("Fieldmark invoice validation", () => {
     expect(json).toContain('"validation"');
     expect(csv).toContain("file_name,vendor,invoice_number");
     expect(csv).toContain("INV-2048.pdf");
+  });
+
+  it("blocks accounting CSV readiness when documents have validation errors", () => {
+    const blocked = exportReadiness([sampleDocument]);
+    const correctedInvoice = updateInvoiceField(sampleDocument.invoice, "invoiceTotal", "4784");
+    const ready = exportReadiness([{ ...sampleDocument, invoice: correctedInvoice }]);
+
+    expect(blocked.canExportCsv).toBe(false);
+    expect(blocked.blockedDocuments).toHaveLength(1);
+    expect(ready.canExportCsv).toBe(true);
+    expect(ready.blockedDocuments).toHaveLength(0);
   });
 });

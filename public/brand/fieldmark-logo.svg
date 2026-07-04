@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="128" viewBox="0 0 520 128" role="img" aria-label="FieldMark">
+  <rect width="128" height="128" rx="28" fill="#07111f"/>
+  <path d="M34 28h48c6.627 0 12 5.373 12 12v48c0 6.627-5.373 12-12 12H34V28Z" fill="#f8fbff"/>
+  <path d="M46 42h36M46 58h26M46 75h30" stroke="#8794a3" stroke-width="6" stroke-linecap="round"/>
+  <path d="M31 28h14v72H31c-6.627 0-12-5.373-12-12V40c0-6.627 5.373-12 12-12Z" fill="#1677c8"/>
+  <path d="M41 39h42v19H41zM41 72h50v18H41z" fill="#dff4ff" stroke="#18a7cc" stroke-width="3"/>
+  <text x="158" y="77" fill="#07111f" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="54" font-weight="780" letter-spacing="-1">FieldMark</text>
+  <text x="161" y="104" fill="#506070" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19">Local-first document extraction with proof.</text>
+</svg>

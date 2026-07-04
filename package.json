@@ -5,9 +5,13 @@
   "description": "Local-first invoice extraction, evidence review, and validation workspace.",
   "license": "MIT",
   "author": "AkhilTrivediX",
+  "homepage": "https://github.com/AkhilTrivediX/FieldMark#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AkhilTrivediX/FieldMark.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AkhilTrivediX/FieldMark/issues"
   },
   "engines": {
     "node": ">=20.19"
