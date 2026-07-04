@@ -50,12 +50,16 @@ import { extractDocumentFromFile } from "./localExtraction.js";
 type MainTab = "vault" | "schemas" | "validation" | "exports" | "lab";
 
 const storageKey = "fieldmark.workspace.v1";
+const zoomStep = 0.1;
+const minZoom = 0.45;
+const maxZoom = 2.5;
 
 export function App() {
   const [activeTab, setActiveTab] = useState<MainTab>("vault");
   const [mode, setMode] = useState<WorkspaceMode>("local");
   const [documents, setDocuments] = useState<DocumentRecord[]>(() => readDocuments());
   const [selectedId, setSelectedId] = useState<string | null>(() => readDocuments()[0]?.id ?? null);
+  const [zoom, setZoom] = useState(1);
   const uploadFiles = useRef(new Map<string, File>());
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -279,6 +283,18 @@ export function App() {
     downloadText("fieldmark-export.csv", exportDocumentsCsv(documents), "text/csv");
   }
 
+  function zoomIn() {
+    setZoom((current) => clampZoom(current + zoomStep));
+  }
+
+  function zoomOut() {
+    setZoom((current) => clampZoom(current - zoomStep));
+  }
+
+  function fitToPage() {
+    setZoom(1);
+  }
+
   return (
     <div className="fieldmark-app">
       <input
@@ -297,14 +313,18 @@ export function App() {
           documents={documents}
           selectedDocument={selectedDocument}
           validation={selectedValidation}
+          zoom={zoom}
           onApplyExpectedTotal={applyExpectedTotal}
           onDownloadJson={downloadSelectedJson}
+          onFitToPage={fitToPage}
           onMarkReviewed={markReviewed}
           onProcessQueued={processQueuedDocument}
           onRefreshExtraction={processQueuedDocument}
           onSelectDocument={selectDocument}
           onUpdateField={updateSelectedField}
           onUpload={() => fileInput.current?.click()}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
         />
       ) : (
         <ProductWorkspace
@@ -414,28 +434,36 @@ interface VaultWorkspaceProps {
   documents: DocumentRecord[];
   selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
+  zoom: number;
   onApplyExpectedTotal: () => void;
   onDownloadJson: () => void;
+  onFitToPage: () => void;
   onMarkReviewed: () => void;
   onProcessQueued: (id: string) => void;
   onRefreshExtraction: (id: string) => void;
   onSelectDocument: (id: string) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
   onUpload: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
 }
 
 function VaultWorkspace({
   documents,
   selectedDocument,
   validation,
+  zoom,
   onApplyExpectedTotal,
   onDownloadJson,
+  onFitToPage,
   onMarkReviewed,
   onProcessQueued,
   onRefreshExtraction,
   onSelectDocument,
   onUpdateField,
-  onUpload
+  onUpload,
+  onZoomIn,
+  onZoomOut
 }: VaultWorkspaceProps) {
   return (
     <main className="workspace vault-workspace">
@@ -453,12 +481,21 @@ function VaultWorkspace({
             <ViewerToolbar
               fileName={selectedDocument.fileName}
               onDownloadJson={onDownloadJson}
+              onFitToPage={onFitToPage}
               onRefreshExtraction={() => onRefreshExtraction(selectedDocument.id)}
+              onZoomIn={onZoomIn}
+              onZoomOut={onZoomOut}
+              zoom={zoom}
             />
             <div className="viewer-canvas">
-              <DocumentSourceView document={selectedDocument} />
+              <DocumentSourceView document={selectedDocument} zoom={zoom} />
             </div>
-            <ViewerFooter />
+            <ViewerFooter
+              onFitToPage={onFitToPage}
+              onZoomIn={onZoomIn}
+              onZoomOut={onZoomOut}
+              zoom={zoom}
+            />
           </>
         ) : (
           <EmptyViewer onUpload={onUpload} />
@@ -579,11 +616,19 @@ function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
 function ViewerToolbar({
   fileName,
   onDownloadJson,
-  onRefreshExtraction
+  onFitToPage,
+  onRefreshExtraction,
+  onZoomIn,
+  onZoomOut,
+  zoom
 }: {
   fileName: string;
   onDownloadJson: () => void;
+  onFitToPage: () => void;
   onRefreshExtraction: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  zoom: number;
 }) {
   return (
     <div className="filebar">
@@ -592,9 +637,15 @@ function ViewerToolbar({
         <span className="tool-chip">1</span>
         <span className="tool-text">/ 1</span>
         <span className="tool-separator" />
-        <span className="tool-text">-</span>
-        <span className="tool-text">100%</span>
-        <span className="tool-text">+</span>
+        <button className="icon-button" aria-label="Zoom out" onClick={onZoomOut}>
+          <ZoomOut />
+        </button>
+        <button className="tool-chip zoom-chip" aria-label="Fit to page" onClick={onFitToPage}>
+          {Math.round(zoom * 100)}%
+        </button>
+        <button className="icon-button" aria-label="Zoom in" onClick={onZoomIn}>
+          <ZoomIn />
+        </button>
         <span className="tool-separator" />
         <button className="icon-button" aria-label="Open text view">
           <FileText />
@@ -630,12 +681,18 @@ function EmptyViewer({ onUpload }: { onUpload: () => void }) {
   );
 }
 
-function DocumentSourceView({ document }: { document: DocumentRecord }) {
+function DocumentSourceView({ document, zoom }: { document: DocumentRecord; zoom: number }) {
   const preview = document.sourcePreview;
 
   if (preview?.image) {
+    const baseWidth = previewBaseWidth(preview.width);
+
     return (
-      <article className="source-page" aria-label="Uploaded document source">
+      <article
+        className="source-page"
+        aria-label="Uploaded document source"
+        style={{ width: `${Math.round(baseWidth * zoom)}px` }}
+      >
         {document.status === "processing" ? (
           <div className="source-processing">
             <RefreshCw size={16} />
@@ -650,7 +707,11 @@ function DocumentSourceView({ document }: { document: DocumentRecord }) {
 
   if (preview?.kind === "text") {
     return (
-      <article className="source-page text-source" aria-label="Imported text source">
+      <article
+        className="source-page text-source"
+        aria-label="Imported text source"
+        style={{ width: `${Math.round(780 * zoom)}px` }}
+      >
         <pre>{preview.text}</pre>
       </article>
     );
@@ -666,7 +727,13 @@ function DocumentSourceView({ document }: { document: DocumentRecord }) {
     );
   }
 
-  return <InvoicePage document={document} />;
+  return (
+    <div className="invoice-scale-frame" style={{ minHeight: `${Math.round(785 * zoom)}px`, width: `${Math.round(780 * zoom)}px` }}>
+      <div className="invoice-scale-content" style={{ transform: `scale(${zoom})` }}>
+        <InvoicePage document={document} />
+      </div>
+    </div>
+  );
 }
 
 function EvidenceOverlay({ document }: { document: DocumentRecord }) {
@@ -817,7 +884,17 @@ function InvoicePage({ document }: { document: DocumentRecord }) {
   );
 }
 
-function ViewerFooter() {
+function ViewerFooter({
+  onFitToPage,
+  onZoomIn,
+  onZoomOut,
+  zoom
+}: {
+  onFitToPage: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  zoom: number;
+}) {
   return (
     <footer className="viewer-footer">
       <div className="viewer-dock">
@@ -828,13 +905,14 @@ function ViewerFooter() {
           <button className="icon-button" aria-label="Select evidence">
             <SlidersHorizontal />
           </button>
-          <button className="icon-button" aria-label="Zoom out">
+          <button className="icon-button" aria-label="Zoom out" onClick={onZoomOut}>
             <ZoomOut />
           </button>
-          <button className="icon-button" aria-label="Zoom in">
+          <span className="dock-zoom">{Math.round(zoom * 100)}%</span>
+          <button className="icon-button" aria-label="Zoom in" onClick={onZoomIn}>
             <ZoomIn />
           </button>
-          <button className="icon-button" aria-label="Fit to page">
+          <button className="icon-button" aria-label="Fit to page" onClick={onFitToPage}>
             <Maximize />
           </button>
         </div>
@@ -1457,6 +1535,18 @@ function isLegacyDemoDocument(document: DocumentRecord): boolean {
   }
 
   return false;
+}
+
+function clampZoom(value: number): number {
+  return Math.min(maxZoom, Math.max(minZoom, Math.round(value * 100) / 100));
+}
+
+function previewBaseWidth(width?: number): number {
+  if (!width || !Number.isFinite(width)) {
+    return 780;
+  }
+
+  return Math.min(860, Math.max(520, width));
 }
 
 function prepareDocumentForStorage(document: DocumentRecord, compact = false): DocumentRecord {
