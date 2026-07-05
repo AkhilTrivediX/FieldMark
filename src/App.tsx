@@ -1086,6 +1086,7 @@ function FieldRail({
   onUpdateCategory: (category: DocumentCategory) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
 }) {
+  const [railMode, setRailMode] = useState<"fields" | "json">("fields");
   const fields = extractedFields(document);
   const counts = validationCounts(validation);
   const blockingIssue = validation.find((result) => result.severity === "error");
@@ -1098,29 +1099,38 @@ function FieldRail({
           <button className="icon-button" aria-label="Filter fields">
             <SlidersHorizontal />
           </button>
-          <button className="icon-button" aria-label="View JSON">
+          <button
+            className={`icon-button ${railMode === "json" ? "selected" : ""}`}
+            aria-label={railMode === "json" ? "View fields" : "View JSON"}
+            onClick={() => setRailMode((current) => (current === "fields" ? "json" : "fields"))}
+            title={railMode === "json" ? "View fields" : "View evidence JSON"}
+          >
             <Code2 />
           </button>
         </div>
       </div>
 
       <div className="field-list">
-        {fields.map((field) => (
-          <label className="field-row" key={field.label}>
-            <span className="label">{field.label}</span>
-            <input
-              aria-label={field.label}
-              className="field-input"
-              readOnly={field.key === "calculatedTotal"}
-              value={field.value}
-              onChange={(event) => onUpdateField(field, event.target.value)}
-            />
-            <span className={`confidence ${field.confidenceKind}`}>
-              {field.confidence == null ? "-" : `${field.confidence}%`}
-            </span>
-            <ChevronRight className="chevron" size={16} />
-          </label>
-        ))}
+        {railMode === "fields" ? (
+          fields.map((field) => (
+            <label className="field-row" key={field.label}>
+              <span className="label">{field.label}</span>
+              <input
+                aria-label={field.label}
+                className="field-input"
+                readOnly={field.key === "calculatedTotal"}
+                value={field.value}
+                onChange={(event) => onUpdateField(field, event.target.value)}
+              />
+              <span className={`confidence ${field.confidenceKind}`}>
+                {field.confidence == null ? "-" : `${field.confidence}%`}
+              </span>
+              <ChevronRight className="chevron" size={16} />
+            </label>
+          ))
+        ) : (
+          <pre className="rail-json-preview">{exportDocumentJson(document)}</pre>
+        )}
 
         <section className="validation" aria-label="Validation">
           <DocumentCategoryPanel document={document} onUpdateCategory={onUpdateCategory} />

@@ -1053,6 +1053,21 @@ input:focus-visible {
   color: oklch(0.42 0.02 255);
 }
 
+.rail-json-preview {
+  background: var(--carbon);
+  color: oklch(0.95 0.004 255);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  margin: 12px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  white-space: pre;
+}
+
 .confidence {
   background: var(--success-soft);
   border-radius: 7px;
