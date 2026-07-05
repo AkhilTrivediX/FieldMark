@@ -626,13 +626,64 @@ input:focus-visible {
   width: 780px;
 }
 
+.ocr-text-source {
+  display: grid;
+  gap: 18px;
+}
+
+.text-source-head {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  line-height: 1.3;
+  margin: -4px 0 0;
+  padding-bottom: 14px;
+}
+
+.text-source-head strong,
+.text-source-head span {
+  display: block;
+}
+
+.text-source-head strong {
+  font-size: 14px;
+}
+
+.text-source-head span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
 .text-source pre {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
     monospace;
   font-size: 13px;
+  line-height: 1.62;
   margin: 0;
   white-space: pre-wrap;
+}
+
+.text-empty {
+  align-content: center;
+  color: var(--muted);
+  display: grid;
+  justify-items: center;
+  min-height: 420px;
+  text-align: center;
+}
+
+.text-empty strong {
+  color: var(--ink);
+  font-size: 16px;
+  margin-top: 10px;
+}
+
+.text-empty p {
+  line-height: 1.45;
+  margin: 6px 0 0;
 }
 
 .unavailable-source {

@@ -50,6 +50,7 @@ import { type GeneratedFixture } from "./generatedFixtures.js";
 import { extractDocumentFromFile } from "./localExtraction.js";
 
 type MainTab = "vault" | "schemas" | "validation" | "exports" | "lab";
+type ViewerMode = "source" | "text";
 
 const storageKey = "fieldmark.workspace.v1";
 const zoomStep = 0.1;
@@ -63,6 +64,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(() => readDocuments()[0]?.id ?? null);
   const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | "all">("all");
   const [zoom, setZoom] = useState(1);
+  const [viewerMode, setViewerMode] = useState<ViewerMode>("source");
   const uploadFiles = useRef(new Map<string, File>());
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -319,6 +321,10 @@ export function App() {
     setZoom(1);
   }
 
+  function toggleTextView() {
+    setViewerMode((current) => (current === "source" ? "text" : "source"));
+  }
+
   return (
     <div className="fieldmark-app">
       <input
@@ -338,6 +344,7 @@ export function App() {
           documents={visibleDocuments}
           selectedDocument={selectedDocument}
           validation={selectedValidation}
+          viewerMode={viewerMode}
           zoom={zoom}
           onApplyExpectedTotal={applyExpectedTotal}
           onCategoryFilterChange={setCategoryFilter}
@@ -347,6 +354,7 @@ export function App() {
           onProcessQueued={processQueuedDocument}
           onRefreshExtraction={processQueuedDocument}
           onSelectDocument={selectDocument}
+          onToggleTextView={toggleTextView}
           onUpdateCategory={updateSelectedCategory}
           onUpdateField={updateSelectedField}
           onUpload={() => fileInput.current?.click()}
@@ -462,6 +470,7 @@ interface VaultWorkspaceProps {
   documents: DocumentRecord[];
   selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
+  viewerMode: ViewerMode;
   zoom: number;
   onApplyExpectedTotal: () => void;
   onCategoryFilterChange: (category: DocumentCategory | "all") => void;
@@ -471,6 +480,7 @@ interface VaultWorkspaceProps {
   onProcessQueued: (id: string) => void;
   onRefreshExtraction: (id: string) => void;
   onSelectDocument: (id: string) => void;
+  onToggleTextView: () => void;
   onUpdateCategory: (category: DocumentCategory) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
   onUpload: () => void;
@@ -483,6 +493,7 @@ function VaultWorkspace({
   documents,
   selectedDocument,
   validation,
+  viewerMode,
   zoom,
   onApplyExpectedTotal,
   onCategoryFilterChange,
@@ -492,6 +503,7 @@ function VaultWorkspace({
   onProcessQueued,
   onRefreshExtraction,
   onSelectDocument,
+  onToggleTextView,
   onUpdateCategory,
   onUpdateField,
   onUpload,
@@ -518,12 +530,14 @@ function VaultWorkspace({
               onDownloadJson={onDownloadJson}
               onFitToPage={onFitToPage}
               onRefreshExtraction={() => onRefreshExtraction(selectedDocument.id)}
+              onToggleTextView={onToggleTextView}
               onZoomIn={onZoomIn}
               onZoomOut={onZoomOut}
+              viewerMode={viewerMode}
               zoom={zoom}
             />
             <div className="viewer-canvas">
-              <DocumentSourceView document={selectedDocument} zoom={zoom} />
+              <DocumentSourceView document={selectedDocument} viewerMode={viewerMode} zoom={zoom} />
             </div>
             <ViewerFooter
               onFitToPage={onFitToPage}
@@ -670,16 +684,20 @@ function ViewerToolbar({
   onDownloadJson,
   onFitToPage,
   onRefreshExtraction,
+  onToggleTextView,
   onZoomIn,
   onZoomOut,
+  viewerMode,
   zoom
 }: {
   fileName: string;
   onDownloadJson: () => void;
   onFitToPage: () => void;
   onRefreshExtraction: () => void;
+  onToggleTextView: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  viewerMode: ViewerMode;
   zoom: number;
 }) {
   return (
@@ -699,7 +717,12 @@ function ViewerToolbar({
           <ZoomIn />
         </button>
         <span className="tool-separator" />
-        <button className="icon-button" aria-label="Open text view">
+        <button
+          className={`icon-button ${viewerMode === "text" ? "selected" : ""}`}
+          aria-label={viewerMode === "text" ? "Open source view" : "Open text view"}
+          onClick={onToggleTextView}
+          title={viewerMode === "text" ? "Open source view" : "Open OCR text view"}
+        >
           <FileText />
         </button>
         <button className="icon-button" aria-label="Download JSON" onClick={onDownloadJson}>
@@ -733,8 +756,21 @@ function EmptyViewer({ onUpload }: { onUpload: () => void }) {
   );
 }
 
-function DocumentSourceView({ document, zoom }: { document: DocumentRecord; zoom: number }) {
+function DocumentSourceView({
+  document,
+  viewerMode,
+  zoom
+}: {
+  document: DocumentRecord;
+  viewerMode: ViewerMode;
+  zoom: number;
+}) {
   const preview = document.sourcePreview;
+  const text = document.ocr?.text || preview?.text || "";
+
+  if (viewerMode === "text") {
+    return <DocumentTextView document={document} text={text} zoom={zoom} />;
+  }
 
   if (preview?.image) {
     const baseWidth = previewBaseWidth(preview.width);
@@ -785,6 +821,43 @@ function DocumentSourceView({ document, zoom }: { document: DocumentRecord; zoom
         <InvoicePage document={document} />
       </div>
     </div>
+  );
+}
+
+function DocumentTextView({
+  document,
+  text,
+  zoom
+}: {
+  document: DocumentRecord;
+  text: string;
+  zoom: number;
+}) {
+  return (
+    <article
+      className="source-page text-source ocr-text-source"
+      aria-label="OCR text view"
+      style={{ width: `${Math.round(780 * zoom)}px` }}
+    >
+      <div className="text-source-head">
+        <div>
+          <strong>{document.ocr?.engine ?? "Source text"}</strong>
+          <span>
+            {document.ocr?.confidence == null ? "confidence unavailable" : `${Math.round(document.ocr.confidence)}% confidence`}
+          </span>
+        </div>
+        <span>{document.ocr?.status ?? "source"}</span>
+      </div>
+      {text.trim().length > 0 ? (
+        <pre>{text}</pre>
+      ) : (
+        <div className="text-empty">
+          <FileText size={22} />
+          <strong>No OCR text yet</strong>
+          <p>Upload the source again or run OCR before inspecting extracted text.</p>
+        </div>
+      )}
+    </article>
   );
 }
 
