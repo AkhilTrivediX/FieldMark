@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatedTotal, validationCounts, validateDocument } from "./domain.js";
+import { type DocumentRecord, calculatedTotal, validationCounts, validateDocument } from "./domain.js";
 import { parseInvoiceText } from "./localExtraction.js";
 
 describe("local invoice extraction parser", () => {
@@ -36,7 +36,7 @@ describe("local invoice extraction parser", () => {
     expect(calculatedTotal(parsed.invoice)).toBe(3640);
     expect(parsed.evidenceRegions.map((region) => region.fieldKey)).toContain("invoiceTotal");
 
-    const document = {
+    const document: DocumentRecord = {
       id: "test-doc",
       fileName: "invoice.pdf",
       uploadedAt: "Test",

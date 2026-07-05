@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculatedTotal,
+  classifyDocumentCategory,
   exportDocumentJson,
   exportDocumentsCsv,
   exportReadiness,
@@ -43,8 +44,16 @@ describe("Fieldmark invoice validation", () => {
 
     expect(json).toContain('"invoiceNumber": "INV-2048"');
     expect(json).toContain('"validation"');
-    expect(csv).toContain("file_name,vendor,invoice_number");
+    expect(csv).toContain("file_name,category,vendor,invoice_number");
     expect(csv).toContain("INV-2048.pdf");
+    expect(csv).toContain("Purchase invoice");
+  });
+
+  it("classifies common document categories from names and text", () => {
+    expect(classifyDocumentCategory("CN-0456.pdf", "Credit note for returned goods")).toBe("Credit note");
+    expect(classifyDocumentCategory("receipt.jpg", "Payment received in full")).toBe("Receipt");
+    expect(classifyDocumentCategory("bank-statement.pdf", "Account statement")).toBe("Statement");
+    expect(classifyDocumentCategory("supplier-invoice.pdf", "Tax Invoice")).toBe("Purchase invoice");
   });
 
   it("blocks accounting CSV readiness when documents have validation errors", () => {

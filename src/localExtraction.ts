@@ -9,6 +9,7 @@ import {
   type LineItem,
   type ScanQualityCheck,
   type ScanQualityProfile,
+  classifyDocumentCategory,
   classifyScanQuality,
   createEmptyInvoice,
   roundMoney,
@@ -88,6 +89,7 @@ export async function extractDocumentFromFile(
   const document: DocumentRecord = {
     ...baseDocument,
     pages: prepared.pages,
+    category: classifyDocumentCategory(file.name, combinedText),
     status: "needs_review",
     mimeType: file.type,
     processingMessage: `Processed locally in ${(elapsedMs / 1000).toFixed(1)}s`,

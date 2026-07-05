@@ -26,11 +26,13 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type DocumentRecord,
+  type DocumentCategory,
   type ExtractedField,
   type ValidationResult,
   type WorkspaceMode,
   calculatedTotal,
   createUploadedDocument,
+  documentCategories,
   exportDocumentJson,
   exportDocumentsCsv,
   exportPresets,
@@ -59,11 +61,16 @@ export function App() {
   const [mode, setMode] = useState<WorkspaceMode>("local");
   const [documents, setDocuments] = useState<DocumentRecord[]>(() => readDocuments());
   const [selectedId, setSelectedId] = useState<string | null>(() => readDocuments()[0]?.id ?? null);
+  const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | "all">("all");
   const [zoom, setZoom] = useState(1);
   const uploadFiles = useRef(new Map<string, File>());
   const fileInput = useRef<HTMLInputElement>(null);
 
   const selectedDocument = documents.find((document) => document.id === selectedId) ?? documents[0] ?? null;
+  const visibleDocuments = useMemo(
+    () => (categoryFilter === "all" ? documents : documents.filter((document) => document.category === categoryFilter)),
+    [categoryFilter, documents]
+  );
   const selectedValidation = useMemo(
     () => (selectedDocument ? validateDocument(selectedDocument) : []),
     [selectedDocument]
@@ -110,6 +117,23 @@ export function App() {
           status: counts.errors > 0 ? "needs_review" : "ready"
         };
       })
+    );
+  }
+
+  function updateSelectedCategory(category: DocumentCategory) {
+    if (!selectedDocument) {
+      return;
+    }
+
+    setDocuments((current) =>
+      current.map((document) =>
+        document.id === selectedDocument.id
+          ? {
+              ...document,
+              category
+            }
+          : document
+      )
     );
   }
 
@@ -310,17 +334,20 @@ export function App() {
 
       {activeTab === "vault" ? (
         <VaultWorkspace
-          documents={documents}
+          categoryFilter={categoryFilter}
+          documents={visibleDocuments}
           selectedDocument={selectedDocument}
           validation={selectedValidation}
           zoom={zoom}
           onApplyExpectedTotal={applyExpectedTotal}
+          onCategoryFilterChange={setCategoryFilter}
           onDownloadJson={downloadSelectedJson}
           onFitToPage={fitToPage}
           onMarkReviewed={markReviewed}
           onProcessQueued={processQueuedDocument}
           onRefreshExtraction={processQueuedDocument}
           onSelectDocument={selectDocument}
+          onUpdateCategory={updateSelectedCategory}
           onUpdateField={updateSelectedField}
           onUpload={() => fileInput.current?.click()}
           onZoomIn={zoomIn}
@@ -431,17 +458,20 @@ function modeLabel(mode: WorkspaceMode) {
 }
 
 interface VaultWorkspaceProps {
+  categoryFilter: DocumentCategory | "all";
   documents: DocumentRecord[];
   selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
   zoom: number;
   onApplyExpectedTotal: () => void;
+  onCategoryFilterChange: (category: DocumentCategory | "all") => void;
   onDownloadJson: () => void;
   onFitToPage: () => void;
   onMarkReviewed: () => void;
   onProcessQueued: (id: string) => void;
   onRefreshExtraction: (id: string) => void;
   onSelectDocument: (id: string) => void;
+  onUpdateCategory: (category: DocumentCategory) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
   onUpload: () => void;
   onZoomIn: () => void;
@@ -449,17 +479,20 @@ interface VaultWorkspaceProps {
 }
 
 function VaultWorkspace({
+  categoryFilter,
   documents,
   selectedDocument,
   validation,
   zoom,
   onApplyExpectedTotal,
+  onCategoryFilterChange,
   onDownloadJson,
   onFitToPage,
   onMarkReviewed,
   onProcessQueued,
   onRefreshExtraction,
   onSelectDocument,
+  onUpdateCategory,
   onUpdateField,
   onUpload,
   onZoomIn,
@@ -468,8 +501,10 @@ function VaultWorkspace({
   return (
     <main className="workspace vault-workspace">
       <DocumentQueue
+        categoryFilter={categoryFilter}
         documents={documents}
         selectedId={selectedDocument?.id ?? null}
+        onCategoryFilterChange={onCategoryFilterChange}
         onProcessQueued={onProcessQueued}
         onSelectDocument={onSelectDocument}
         onUpload={onUpload}
@@ -508,6 +543,7 @@ function VaultWorkspace({
           validation={validation}
           onApplyExpectedTotal={onApplyExpectedTotal}
           onMarkReviewed={onMarkReviewed}
+          onUpdateCategory={onUpdateCategory}
           onUpdateField={onUpdateField}
         />
       ) : (
@@ -518,14 +554,18 @@ function VaultWorkspace({
 }
 
 function DocumentQueue({
+  categoryFilter,
   documents,
   selectedId,
+  onCategoryFilterChange,
   onProcessQueued,
   onSelectDocument,
   onUpload
 }: {
+  categoryFilter: DocumentCategory | "all";
   documents: DocumentRecord[];
   selectedId: string | null;
+  onCategoryFilterChange: (category: DocumentCategory | "all") => void;
   onProcessQueued: (id: string) => void;
   onSelectDocument: (id: string) => void;
   onUpload: () => void;
@@ -539,10 +579,22 @@ function DocumentQueue({
         </button>
       </div>
 
-      <button className="filter-button">
-        <span>All documents</span>
+      <label className="filter-control">
+        <span>Show</span>
+        <select
+          aria-label="Filter documents by category"
+          value={categoryFilter}
+          onChange={(event) => onCategoryFilterChange(event.target.value as DocumentCategory | "all")}
+        >
+          <option value="all">All documents</option>
+          {documentCategories.map((category) => (
+            <option value={category} key={category}>
+              {category}
+            </option>
+          ))}
+        </select>
         <ChevronDown size={14} />
-      </button>
+      </label>
 
       <div className="doc-list">
         {documents.length === 0 ? (
@@ -951,12 +1003,14 @@ function FieldRail({
   validation,
   onApplyExpectedTotal,
   onMarkReviewed,
+  onUpdateCategory,
   onUpdateField
 }: {
   document: DocumentRecord;
   validation: ValidationResult[];
   onApplyExpectedTotal: () => void;
   onMarkReviewed: () => void;
+  onUpdateCategory: (category: DocumentCategory) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
 }) {
   const fields = extractedFields(document);
@@ -996,6 +1050,7 @@ function FieldRail({
         ))}
 
         <section className="validation" aria-label="Validation">
+          <DocumentCategoryPanel document={document} onUpdateCategory={onUpdateCategory} />
           <ScanQualityPanel document={document} />
 
           <div className="validation-top">
@@ -1065,6 +1120,34 @@ function ScanQualityPanel({ document }: { document: DocumentRecord }) {
           </span>
         ))}
       </div>
+    </section>
+  );
+}
+
+function DocumentCategoryPanel({
+  document,
+  onUpdateCategory
+}: {
+  document: DocumentRecord;
+  onUpdateCategory: (category: DocumentCategory) => void;
+}) {
+  return (
+    <section className="category-panel" aria-label="Document category">
+      <div>
+        <strong>Document type</strong>
+        <p>Used for filtering, validation context, and exports.</p>
+      </div>
+      <select
+        aria-label="Document type"
+        value={document.category}
+        onChange={(event) => onUpdateCategory(event.target.value as DocumentCategory)}
+      >
+        {documentCategories.map((category) => (
+          <option value={category} key={category}>
+            {category}
+          </option>
+        ))}
+      </select>
     </section>
   );
 }

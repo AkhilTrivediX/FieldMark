@@ -220,7 +220,8 @@ input:focus-visible {
   width: 30px;
 }
 
-.filter-button {
+.filter-button,
+.filter-control {
   align-items: center;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -231,6 +232,33 @@ input:focus-visible {
   justify-content: space-between;
   margin: 0 20px 12px;
   padding: 0 14px;
+}
+
+.filter-control {
+  gap: 8px;
+}
+
+.filter-control span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.filter-control select,
+.category-panel select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+}
+
+.filter-control svg {
+  color: var(--muted);
+  flex: 0 0 auto;
 }
 
 .doc-list {
@@ -1002,6 +1030,35 @@ input:focus-visible {
   border-bottom: 1px solid var(--line);
   margin: -4px -2px 14px;
   padding: 0 2px 14px;
+}
+
+.category-panel {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 176px;
+  margin: -4px -2px 14px;
+  padding: 0 2px 14px;
+}
+
+.category-panel strong {
+  font-size: 15px;
+}
+
+.category-panel p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.category-panel select {
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  height: 34px;
+  padding: 0 10px;
 }
 
 .scan-quality-head {

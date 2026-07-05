@@ -6,6 +6,14 @@ export type FieldConfidence = "high" | "medium" | "check" | "derived";
 
 export type ScanQualitySeverity = "pass" | "warning" | "error";
 
+export type DocumentCategory =
+  | "Purchase invoice"
+  | "Sales invoice"
+  | "Receipt"
+  | "Credit note"
+  | "Statement"
+  | "Other document";
+
 export interface LineItem {
   id: string;
   description: string;
@@ -45,7 +53,7 @@ export interface DocumentRecord {
   fileName: string;
   uploadedAt: string;
   pages: number;
-  category: string;
+  category: DocumentCategory;
   status: DocumentStatus;
   source: "sample" | "upload" | "import";
   mimeType?: string;
@@ -149,6 +157,15 @@ export interface ExportReadiness {
   canExportCsv: boolean;
   blockedDocuments: DocumentRecord[];
 }
+
+export const documentCategories: DocumentCategory[] = [
+  "Purchase invoice",
+  "Sales invoice",
+  "Receipt",
+  "Credit note",
+  "Statement",
+  "Other document"
+];
 
 export const schemaFields: SchemaField[] = [
   {
@@ -651,6 +668,28 @@ export function parseMoney(value: string): number {
   return Number.isFinite(parsed) ? roundMoney(parsed) : 0;
 }
 
+export function classifyDocumentCategory(fileName: string, text = ""): DocumentCategory {
+  const haystack = `${fileName}\n${text}`.toLowerCase();
+
+  if (/\b(credit\s*note|credit memo|cn[-_\s]?\d+)/.test(haystack)) {
+    return "Credit note";
+  }
+
+  if (/\b(statement|ledger|account\s+summary|bank\s+statement)\b/.test(haystack)) {
+    return "Statement";
+  }
+
+  if (/\b(receipt|payment received|cash memo|paid)\b/.test(haystack) && !/\binvoice\b/.test(haystack)) {
+    return "Receipt";
+  }
+
+  if (/\b(sales\s+invoice|tax\s+invoice|invoice)\b/.test(haystack)) {
+    return /from\s+us|our\s+invoice|sales\s+invoice/.test(haystack) ? "Sales invoice" : "Purchase invoice";
+  }
+
+  return "Other document";
+}
+
 export function createUploadedDocument(
   fileName: string,
   options: { mimeType?: string; pages?: number } = {}
@@ -663,7 +702,7 @@ export function createUploadedDocument(
     fileName,
     uploadedAt: "Just now",
     pages: options.pages ?? 1,
-    category: "Purchase invoice",
+    category: classifyDocumentCategory(fileName),
     status: "queued",
     source: "upload",
     mimeType: options.mimeType,
@@ -787,9 +826,13 @@ export function classifyScanQuality(fileName: string): ScanQualityProfile {
 
 export function normalizeDocument(document: DocumentRecord): DocumentRecord {
   const invoice = document.invoice ?? createEmptyInvoice(document.fileName);
+  const category = documentCategories.includes(document.category)
+    ? document.category
+    : classifyDocumentCategory(document.fileName, document.ocr?.text ?? "");
 
   return {
     ...document,
+    category,
     scanQuality: document.scanQuality ?? classifyScanQuality(document.fileName),
     evidenceRegions: (document.evidenceRegions ?? []).map((region) => ({ ...region, bbox: region.bbox ? { ...region.bbox } : undefined })),
     ocr: document.ocr ? { ...document.ocr } : undefined,
@@ -830,7 +873,7 @@ export function exportDocumentJson(document: DocumentRecord): string {
 
 export function exportDocumentsCsv(documents: DocumentRecord[]): string {
   const rows = [
-    ["file_name", "vendor", "invoice_number", "invoice_date", "subtotal", "tax_total", "shipping", "discount", "invoice_total", "calculated_total", "scan_quality", "scan_score", "status"],
+    ["file_name", "category", "vendor", "invoice_number", "invoice_date", "subtotal", "tax_total", "shipping", "discount", "invoice_total", "calculated_total", "scan_quality", "scan_score", "status"],
     ...documents.map((document) => {
       const normalized = normalizeDocument(document);
       const invoice = normalized.invoice;
@@ -839,6 +882,7 @@ export function exportDocumentsCsv(documents: DocumentRecord[]): string {
 
       return [
         normalized.fileName,
+        normalized.category,
         invoice.vendorName,
         invoice.invoiceNumber,
         invoice.invoiceDate,
