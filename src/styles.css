@@ -1441,6 +1441,26 @@ input:focus-visible {
   margin: 5px 0 0;
 }
 
+.suggestion-band code {
+  color: var(--ink);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 12.5px;
+}
+
+.suggestion-band.quiet-suggestion {
+  background: var(--chrome);
+  border-color: var(--line);
+}
+
+.suggestion-band .secondary:disabled {
+  background: oklch(0.91 0.006 255);
+  border-color: oklch(0.91 0.006 255);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .ledger-layout {
   display: grid;
   gap: 16px;

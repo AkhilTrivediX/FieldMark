@@ -111,12 +111,27 @@ export function App() {
           return document;
         }
 
+        const previousValue = extractedFields(document).find((item) => item.key === field.key)?.value ?? "";
         const invoice = updateInvoiceField(document.invoice, field.key, value);
         const counts = validationCounts(validateDocument({ ...document, invoice }));
+        const shouldRecordCorrection = previousValue.trim() !== value.trim() && field.key !== "calculatedTotal";
 
         return {
           ...document,
           invoice,
+          corrections: shouldRecordCorrection
+            ? [
+                ...(document.corrections ?? []),
+                {
+                  id: `correction-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                  fieldKey: field.key,
+                  label: field.label,
+                  previousValue,
+                  nextValue: value,
+                  correctedAt: new Date().toISOString()
+                }
+              ]
+            : document.corrections,
           status: counts.errors > 0 ? "needs_review" : "ready"
         };
       })
@@ -1276,7 +1291,7 @@ interface ProductWorkspaceProps {
 function ProductWorkspace(props: ProductWorkspaceProps) {
   return (
     <main className="product-workspace">
-      {props.activeTab === "schemas" ? <SchemaPage /> : null}
+      {props.activeTab === "schemas" ? <SchemaPage documents={props.documents} /> : null}
       {props.activeTab === "validation" ? (
         <ValidationPage
           documents={props.documents}
@@ -1304,7 +1319,9 @@ function ProductWorkspace(props: ProductWorkspaceProps) {
   );
 }
 
-function SchemaPage() {
+function SchemaPage({ documents }: { documents: DocumentRecord[] }) {
+  const correctionSuggestions = useMemo(() => schemaCorrectionSuggestions(documents), [documents]);
+
   return (
     <section className="product-panel schema-page">
       <div className="page-heading">
@@ -1341,15 +1358,50 @@ function SchemaPage() {
         ))}
       </div>
 
-      <section className="suggestion-band">
-        <div>
-          <strong>Schema suggestion</strong>
-          <p>`freight_charge` has appeared in 21 corrections and should be promoted from an alias to a mapped field.</p>
-        </div>
-        <button className="secondary">Review suggestion</button>
-      </section>
+      {correctionSuggestions.length > 0 ? (
+        <section className="suggestion-band">
+          <div>
+            <strong>Schema suggestion</strong>
+            <p>
+              <code>{correctionSuggestions[0]!.label}</code> was corrected {correctionSuggestions[0]!.count} time
+              {correctionSuggestions[0]!.count === 1 ? "" : "s"}. Review aliases or validation rules for this field.
+            </p>
+          </div>
+          <button className="secondary">Review suggestion</button>
+        </section>
+      ) : (
+        <section className="suggestion-band quiet-suggestion">
+          <div>
+            <strong>No correction patterns yet</strong>
+            <p>Schema suggestions will appear after repeated field corrections in the review bench.</p>
+          </div>
+          <button className="secondary" disabled>
+            Waiting for corrections
+          </button>
+        </section>
+      )}
     </section>
   );
+}
+
+function schemaCorrectionSuggestions(documents: DocumentRecord[]) {
+  const counts = new Map<string, { label: string; count: number }>();
+
+  for (const document of documents) {
+    for (const correction of document.corrections ?? []) {
+      if (correction.fieldKey === "calculatedTotal") {
+        continue;
+      }
+
+      const key = String(correction.fieldKey);
+      const current = counts.get(key) ?? { label: correction.label, count: 0 };
+      counts.set(key, { ...current, count: current.count + 1 });
+    }
+  }
+
+  return Array.from(counts.entries())
+    .map(([fieldKey, value]) => ({ fieldKey, ...value }))
+    .sort((left, right) => right.count - left.count);
 }
 
 function ValidationPage({

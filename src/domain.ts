@@ -61,8 +61,18 @@ export interface DocumentRecord {
   sourcePreview?: DocumentSourcePreview;
   ocr?: OcrProfile;
   evidenceRegions?: EvidenceRegion[];
+  corrections?: FieldCorrection[];
   scanQuality: ScanQualityProfile;
   invoice: InvoiceRecord;
+}
+
+export interface FieldCorrection {
+  id: string;
+  fieldKey: ExtractedField["key"];
+  label: string;
+  previousValue: string;
+  nextValue: string;
+  correctedAt: string;
 }
 
 export interface DocumentSourcePreview {
@@ -835,6 +845,7 @@ export function normalizeDocument(document: DocumentRecord): DocumentRecord {
     category,
     scanQuality: document.scanQuality ?? classifyScanQuality(document.fileName),
     evidenceRegions: (document.evidenceRegions ?? []).map((region) => ({ ...region, bbox: region.bbox ? { ...region.bbox } : undefined })),
+    corrections: (document.corrections ?? []).map((correction) => ({ ...correction })),
     ocr: document.ocr ? { ...document.ocr } : undefined,
     sourcePreview: document.sourcePreview ? { ...document.sourcePreview } : undefined,
     invoice: {
@@ -864,6 +875,7 @@ export function exportDocumentJson(document: DocumentRecord): string {
       invoice: normalized.invoice,
       ocr: normalized.ocr,
       evidence: normalized.evidenceRegions ?? [],
+      corrections: normalized.corrections ?? [],
       validation: validateDocument(normalized)
     },
     null,
