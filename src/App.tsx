@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Table2,
+  Trash2,
   Upload,
   ZoomIn,
   ZoomOut
@@ -309,6 +310,19 @@ export function App() {
     downloadText("fieldmark-export.csv", exportDocumentsCsv(documents), "text/csv");
   }
 
+  function deleteDocument(id: string) {
+    setDocuments((current) => {
+      const remaining = current.filter((document) => document.id !== id);
+
+      if (selectedId === id) {
+        setSelectedId(remaining[0]?.id ?? null);
+      }
+
+      uploadFiles.current.delete(id);
+      return remaining;
+    });
+  }
+
   function zoomIn() {
     setZoom((current) => clampZoom(current + zoomStep));
   }
@@ -348,6 +362,7 @@ export function App() {
           zoom={zoom}
           onApplyExpectedTotal={applyExpectedTotal}
           onCategoryFilterChange={setCategoryFilter}
+          onDeleteDocument={deleteDocument}
           onDownloadJson={downloadSelectedJson}
           onFitToPage={fitToPage}
           onMarkReviewed={markReviewed}
@@ -474,6 +489,7 @@ interface VaultWorkspaceProps {
   zoom: number;
   onApplyExpectedTotal: () => void;
   onCategoryFilterChange: (category: DocumentCategory | "all") => void;
+  onDeleteDocument: (id: string) => void;
   onDownloadJson: () => void;
   onFitToPage: () => void;
   onMarkReviewed: () => void;
@@ -497,6 +513,7 @@ function VaultWorkspace({
   zoom,
   onApplyExpectedTotal,
   onCategoryFilterChange,
+  onDeleteDocument,
   onDownloadJson,
   onFitToPage,
   onMarkReviewed,
@@ -527,6 +544,7 @@ function VaultWorkspace({
           <>
             <ViewerToolbar
               fileName={selectedDocument.fileName}
+              onDeleteDocument={() => onDeleteDocument(selectedDocument.id)}
               onDownloadJson={onDownloadJson}
               onFitToPage={onFitToPage}
               onRefreshExtraction={() => onRefreshExtraction(selectedDocument.id)}
@@ -681,6 +699,7 @@ function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
 
 function ViewerToolbar({
   fileName,
+  onDeleteDocument,
   onDownloadJson,
   onFitToPage,
   onRefreshExtraction,
@@ -691,6 +710,7 @@ function ViewerToolbar({
   zoom
 }: {
   fileName: string;
+  onDeleteDocument: () => void;
   onDownloadJson: () => void;
   onFitToPage: () => void;
   onRefreshExtraction: () => void;
@@ -727,6 +747,9 @@ function ViewerToolbar({
         </button>
         <button className="icon-button" aria-label="Download JSON" onClick={onDownloadJson}>
           <Download />
+        </button>
+        <button className="icon-button danger-tool" aria-label="Delete document" onClick={onDeleteDocument}>
+          <Trash2 />
         </button>
         <button className="icon-button" aria-label="Full screen">
           <Maximize />
