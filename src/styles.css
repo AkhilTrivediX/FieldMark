@@ -454,6 +454,11 @@ input:focus-visible {
   min-height: 0;
 }
 
+.viewer:fullscreen {
+  height: 100vh;
+  width: 100vw;
+}
+
 .filebar {
   align-items: center;
   background: var(--bg);

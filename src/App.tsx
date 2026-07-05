@@ -579,6 +579,23 @@ function VaultWorkspace({
   onZoomIn,
   onZoomOut
 }: VaultWorkspaceProps) {
+  const viewerShell = useRef<HTMLElement | null>(null);
+
+  function toggleViewerFullScreen() {
+    const viewer = viewerShell.current;
+
+    if (!viewer) {
+      return;
+    }
+
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+
+    void viewer.requestFullscreen().catch(() => undefined);
+  }
+
   return (
     <main className="workspace vault-workspace">
       <DocumentQueue
@@ -591,7 +608,7 @@ function VaultWorkspace({
         onUpload={onUpload}
       />
 
-      <section className="viewer" aria-label="Document viewer">
+      <section className="viewer" aria-label="Document viewer" ref={viewerShell}>
         {selectedDocument ? (
           <>
             <ViewerToolbar
@@ -599,6 +616,7 @@ function VaultWorkspace({
               onDeleteDocument={() => onDeleteDocument(selectedDocument.id)}
               onDownloadJson={onDownloadJson}
               onFitToPage={onFitToPage}
+              onToggleFullScreen={toggleViewerFullScreen}
               onRefreshExtraction={() => onRefreshExtraction(selectedDocument.id)}
               onToggleTextView={onToggleTextView}
               onZoomIn={onZoomIn}
@@ -766,6 +784,7 @@ function ViewerToolbar({
   onDownloadJson,
   onFitToPage,
   onRefreshExtraction,
+  onToggleFullScreen,
   onToggleTextView,
   onZoomIn,
   onZoomOut,
@@ -777,6 +796,7 @@ function ViewerToolbar({
   onDownloadJson: () => void;
   onFitToPage: () => void;
   onRefreshExtraction: () => void;
+  onToggleFullScreen: () => void;
   onToggleTextView: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -814,7 +834,7 @@ function ViewerToolbar({
         <button className="icon-button danger-tool" aria-label="Delete document" onClick={onDeleteDocument}>
           <Trash2 />
         </button>
-        <button className="icon-button" aria-label="Full screen">
+        <button className="icon-button" aria-label="Full screen" onClick={onToggleFullScreen}>
           <Maximize />
         </button>
         <button className="icon-button" aria-label="Refresh extraction" onClick={onRefreshExtraction}>
