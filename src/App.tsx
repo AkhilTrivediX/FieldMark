@@ -83,11 +83,15 @@ export function App() {
   const uploadFiles = useRef(new Map<string, File>());
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const selectedDocument = documents.find((document) => document.id === selectedId) ?? documents[0] ?? null;
   const visibleDocuments = useMemo(
     () => (categoryFilter === "all" ? documents : documents.filter((document) => document.category === categoryFilter)),
     [categoryFilter, documents]
   );
+  const selectedDocument = useMemo(() => {
+    const selectionPool = activeTab === "vault" ? visibleDocuments : documents;
+
+    return selectionPool.find((document) => document.id === selectedId) ?? selectionPool[0] ?? null;
+  }, [activeTab, documents, selectedId, visibleDocuments]);
   const selectedValidation = useMemo(
     () => (selectedDocument ? validateDocument(selectedDocument) : []),
     [selectedDocument]
@@ -102,12 +106,14 @@ export function App() {
   }, [documents]);
 
   useEffect(() => {
-    if (selectedDocument || documents.length === 0) {
+    const selectionPool = activeTab === "vault" ? visibleDocuments : documents;
+
+    if (selectionPool.length === 0 || selectionPool.some((document) => document.id === selectedId)) {
       return;
     }
 
-    setSelectedId(documents[0]!.id);
-  }, [documents, selectedDocument]);
+    setSelectedId(selectionPool[0]!.id);
+  }, [activeTab, documents, selectedId, visibleDocuments]);
 
   function selectDocument(id: string) {
     setSelectedId(id);
@@ -313,6 +319,7 @@ export function App() {
 
     setDocuments((current) => [...incoming, ...current]);
     setSelectedId(incoming[0]!.id);
+    setCategoryFilter("all");
     setActiveTab("vault");
 
     incoming.forEach((document, index) => {
@@ -328,6 +335,7 @@ export function App() {
     const document = createFixtureDocument(fixture);
     setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);
     setSelectedId(document.id);
+    setCategoryFilter("all");
     setActiveTab("vault");
   }
 
