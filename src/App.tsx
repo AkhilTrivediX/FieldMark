@@ -356,6 +356,25 @@ export function App() {
     );
   }
 
+  function downloadVaultArchive() {
+    const archived = documents.map((document) => prepareDocumentForStorage(document, true));
+
+    downloadText(
+      `fieldmark-vault-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(
+        {
+          app: "FieldMark",
+          exportedAt: new Date().toISOString(),
+          documentCount: archived.length,
+          documents: archived
+        },
+        null,
+        2
+      ),
+      "application/json"
+    );
+  }
+
   function downloadCsv() {
     if (documents.length === 0) {
       return;
@@ -404,7 +423,13 @@ export function App() {
         onChange={(event) => handleFiles(event.target.files)}
       />
 
-      <Topbar activeTab={activeTab} mode={mode} onModeChange={setMode} onTabChange={setActiveTab} />
+      <Topbar
+        activeTab={activeTab}
+        mode={mode}
+        onDownloadVaultArchive={downloadVaultArchive}
+        onModeChange={setMode}
+        onTabChange={setActiveTab}
+      />
 
       {activeTab === "vault" ? (
         <VaultWorkspace
@@ -456,11 +481,12 @@ export function App() {
 interface TopbarProps {
   activeTab: MainTab;
   mode: WorkspaceMode;
+  onDownloadVaultArchive: () => void;
   onModeChange: (mode: WorkspaceMode) => void;
   onTabChange: (tab: MainTab) => void;
 }
 
-function Topbar({ activeTab, mode, onModeChange, onTabChange }: TopbarProps) {
+function Topbar({ activeTab, mode, onDownloadVaultArchive, onModeChange, onTabChange }: TopbarProps) {
   return (
     <header className="topbar">
       <div className="brand">
@@ -488,7 +514,12 @@ function Topbar({ activeTab, mode, onModeChange, onTabChange }: TopbarProps) {
 
       <div className="top-actions">
         <ModeSwitch mode={mode} onModeChange={onModeChange} />
-        <button className="icon-button" aria-label="Open local folder">
+        <button
+          className="icon-button"
+          aria-label="Download local vault archive"
+          onClick={onDownloadVaultArchive}
+          title="Download a compact local vault archive"
+        >
           <FolderOpen />
         </button>
         <button className="icon-button" aria-label="Settings">
@@ -2065,6 +2096,8 @@ function downloadText(fileName: string, text: string, type: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
