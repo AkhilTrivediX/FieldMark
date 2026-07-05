@@ -1095,6 +1095,27 @@ input:focus-visible {
   color: oklch(0.42 0.02 255);
 }
 
+.field-filter-empty {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  min-height: 118px;
+  padding: 22px;
+  text-align: center;
+}
+
+.field-filter-empty strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.field-filter-empty span {
+  font-size: 13px;
+}
+
 .rail-json-preview {
   background: var(--carbon);
   color: oklch(0.95 0.004 255);

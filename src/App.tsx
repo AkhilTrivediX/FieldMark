@@ -1189,8 +1189,12 @@ function FieldRail({
   onUpdateField: (field: ExtractedField, value: string) => void;
 }) {
   const [railMode, setRailMode] = useState<"fields" | "json">("fields");
+  const [showReviewFields, setShowReviewFields] = useState(false);
   const editStartValues = useRef(new Map<string, string>());
   const fields = extractedFields(document);
+  const visibleFields = showReviewFields
+    ? fields.filter((field) => field.confidenceKind === "check" || field.confidenceKind === "medium")
+    : fields;
   const counts = validationCounts(validation);
   const blockingIssue = validation.find((result) => result.severity === "error");
 
@@ -1199,7 +1203,12 @@ function FieldRail({
       <div className="fields-head">
         <h2>Extracted fields</h2>
         <div className="fields-actions">
-          <button className="icon-button" aria-label="Filter fields">
+          <button
+            className={`icon-button ${showReviewFields ? "selected" : ""}`}
+            aria-label={showReviewFields ? "Show all fields" : "Show fields needing review"}
+            onClick={() => setShowReviewFields((current) => !current)}
+            title={showReviewFields ? "Show all fields" : "Show fields needing review"}
+          >
             <SlidersHorizontal />
           </button>
           <button
@@ -1215,31 +1224,39 @@ function FieldRail({
 
       <div className="field-list">
         {railMode === "fields" ? (
-          fields.map((field) => (
-            <label className="field-row" key={field.label}>
-              <span className="label">{field.label}</span>
-              <input
-                aria-label={field.label}
-                className="field-input"
-                readOnly={field.key === "calculatedTotal"}
-                value={field.value}
-                onFocus={() => {
-                  editStartValues.current.set(String(field.key), field.value);
-                }}
-                onChange={(event) => onUpdateField(field, event.target.value)}
-                onBlur={(event) => {
-                  const editKey = String(field.key);
-                  const previousValue = editStartValues.current.get(editKey) ?? field.value;
-                  editStartValues.current.delete(editKey);
-                  onCommitFieldCorrection(field, previousValue, event.currentTarget.value);
-                }}
-              />
-              <span className={`confidence ${field.confidenceKind}`}>
-                {field.confidence == null ? "-" : `${field.confidence}%`}
-              </span>
-              <ChevronRight className="chevron" size={16} />
-            </label>
-          ))
+          visibleFields.length > 0 ? (
+            visibleFields.map((field) => (
+              <label className="field-row" key={field.label}>
+                <span className="label">{field.label}</span>
+                <input
+                  aria-label={field.label}
+                  className="field-input"
+                  readOnly={field.key === "calculatedTotal"}
+                  value={field.value}
+                  onFocus={() => {
+                    editStartValues.current.set(String(field.key), field.value);
+                  }}
+                  onChange={(event) => onUpdateField(field, event.target.value)}
+                  onBlur={(event) => {
+                    const editKey = String(field.key);
+                    const previousValue = editStartValues.current.get(editKey) ?? field.value;
+                    editStartValues.current.delete(editKey);
+                    onCommitFieldCorrection(field, previousValue, event.currentTarget.value);
+                  }}
+                />
+                <span className={`confidence ${field.confidenceKind}`}>
+                  {field.confidence == null ? "-" : `${field.confidence}%`}
+                </span>
+                <ChevronRight className="chevron" size={16} />
+              </label>
+            ))
+          ) : (
+            <div className="field-filter-empty">
+              <ShieldCheck size={18} />
+              <strong>No review fields</strong>
+              <span>All extracted fields are currently high confidence.</span>
+            </div>
+          )
         ) : (
           <pre className="rail-json-preview">{exportDocumentJson(document)}</pre>
         )}
