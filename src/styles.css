@@ -435,6 +435,11 @@ input:focus-visible {
   margin-left: 6px;
 }
 
+.queue-action.retry-action {
+  background: var(--danger);
+  color: white;
+}
+
 .doc-count {
   border-top: 1px solid var(--line);
   color: var(--muted);

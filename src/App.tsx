@@ -681,34 +681,38 @@ function DocumentQueue({
             <button onClick={onUpload}>Upload invoice</button>
           </div>
         ) : null}
-        {documents.map((document) => (
-          <button
-            key={document.id}
-            className={`doc-card ${document.id === selectedId ? "active" : ""}`}
-            onClick={() => onSelectDocument(document.id)}
-          >
-            <DocumentThumb />
-            <span className="doc-title">
-              <strong>{document.fileName}</strong>
-              <small>
-                {document.processingMessage ?? document.uploadedAt}
-                {document.status === "needs_review" ? <span className="doc-dot" /> : null}
-              </small>
-              <StatusBadge status={document.status} />
-              {document.status === "queued" ? (
-                <span
-                  className="queue-action"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onProcessQueued(document.id);
-                  }}
-                >
-                  Run OCR
-                </span>
-              ) : null}
-            </span>
-          </button>
-        ))}
+        {documents.map((document) => {
+          const canRunExtraction = document.status === "queued" || document.ocr?.status === "failed";
+
+          return (
+            <button
+              key={document.id}
+              className={`doc-card ${document.id === selectedId ? "active" : ""}`}
+              onClick={() => onSelectDocument(document.id)}
+            >
+              <DocumentThumb />
+              <span className="doc-title">
+                <strong>{document.fileName}</strong>
+                <small>
+                  {document.processingMessage ?? document.uploadedAt}
+                  {document.status === "needs_review" ? <span className="doc-dot" /> : null}
+                </small>
+                <StatusBadge status={document.status} />
+                {canRunExtraction ? (
+                  <span
+                    className={`queue-action ${document.ocr?.status === "failed" ? "retry-action" : ""}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onProcessQueued(document.id);
+                    }}
+                  >
+                    {document.ocr?.status === "failed" ? "Retry OCR" : "Run OCR"}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="doc-count">{documents.length} documents</div>
