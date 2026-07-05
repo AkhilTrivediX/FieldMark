@@ -1402,7 +1402,7 @@ interface ProductWorkspaceProps {
 function ProductWorkspace(props: ProductWorkspaceProps) {
   return (
     <main className="product-workspace">
-      {props.activeTab === "schemas" ? <SchemaPage documents={props.documents} /> : null}
+      {props.activeTab === "schemas" ? <SchemaPage documents={props.documents} onTabChange={props.onTabChange} /> : null}
       {props.activeTab === "validation" ? (
         <ValidationPage
           documents={props.documents}
@@ -1430,7 +1430,7 @@ function ProductWorkspace(props: ProductWorkspaceProps) {
   );
 }
 
-function SchemaPage({ documents }: { documents: DocumentRecord[] }) {
+function SchemaPage({ documents, onTabChange }: { documents: DocumentRecord[]; onTabChange: (tab: MainTab) => void }) {
   const correctionSuggestions = useMemo(() => schemaCorrectionSuggestions(documents), [documents]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const topSuggestion = correctionSuggestions[0] ?? null;
@@ -1443,13 +1443,13 @@ function SchemaPage({ documents }: { documents: DocumentRecord[] }) {
           <p>Versioned fields, aliases, evidence requirements, and export mapping.</p>
         </div>
         <div className="heading-actions">
-          <button className="secondary">
+          <button className="secondary" onClick={() => onTabChange("lab")}>
             <ScanLine size={16} />
-            Test 24 docs
+            Open test lab
           </button>
-          <button>
+          <button disabled title="Schema publishing will be enabled when schema editing is active.">
             <Check size={16} />
-            Publish v13
+            Local v13 active
           </button>
         </div>
       </div>
