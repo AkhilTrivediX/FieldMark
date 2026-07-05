@@ -79,6 +79,9 @@ describe("FieldMark generated invoice fixtures", () => {
 
       expect(calculatedTotal(document.invoice)).toBe(fixture.expected.calculatedTotal);
       expect(document.scanQuality.score).toBeGreaterThanOrEqual(35);
+      expect(document.sourcePreview?.width).toBe(1240);
+      expect(document.sourcePreview?.height).toBe(1754);
+      expect(document.evidenceRegions?.every((region) => region.bbox)).toBe(true);
 
       if (fixture.expected.hasTotalMismatch || fixture.expected.hasBlockingScanIssue) {
         expect(counts.errors).toBeGreaterThan(0);

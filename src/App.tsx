@@ -80,6 +80,7 @@ export function App() {
   const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | "all">("all");
   const [zoom, setZoom] = useState(1);
   const [viewerMode, setViewerMode] = useState<ViewerMode>("source");
+  const [focusedFieldKey, setFocusedFieldKey] = useState<ExtractedField["key"] | null>(null);
   const uploadFiles = useRef(new Map<string, File>());
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -92,6 +93,10 @@ export function App() {
 
     return selectionPool.find((document) => document.id === selectedId) ?? selectionPool[0] ?? null;
   }, [activeTab, documents, selectedId, visibleDocuments]);
+
+  useEffect(() => {
+    setFocusedFieldKey(null);
+  }, [selectedId]);
   const selectedValidation = useMemo(
     () => (selectedDocument ? validateDocument(selectedDocument) : []),
     [selectedDocument]
@@ -407,6 +412,7 @@ export function App() {
           documents={visibleDocuments}
           selectedDocument={selectedDocument}
           validation={selectedValidation}
+          focusedFieldKey={focusedFieldKey}
           viewerMode={viewerMode}
           zoom={zoom}
           onApplyExpectedTotal={applyExpectedTotal}
@@ -415,6 +421,7 @@ export function App() {
           onDeleteDocument={deleteDocument}
           onDownloadJson={downloadSelectedJson}
           onFitToPage={fitToPage}
+          onFocusField={setFocusedFieldKey}
           onMarkReviewed={markReviewed}
           onProcessQueued={processQueuedDocument}
           onRefreshExtraction={processQueuedDocument}
@@ -535,6 +542,7 @@ interface VaultWorkspaceProps {
   documents: DocumentRecord[];
   selectedDocument: DocumentRecord | null;
   validation: ValidationResult[];
+  focusedFieldKey: ExtractedField["key"] | null;
   viewerMode: ViewerMode;
   zoom: number;
   onApplyExpectedTotal: () => void;
@@ -543,6 +551,7 @@ interface VaultWorkspaceProps {
   onDeleteDocument: (id: string) => void;
   onDownloadJson: () => void;
   onFitToPage: () => void;
+  onFocusField: (fieldKey: ExtractedField["key"] | null) => void;
   onMarkReviewed: () => void;
   onProcessQueued: (id: string) => void;
   onRefreshExtraction: (id: string) => void;
@@ -560,6 +569,7 @@ function VaultWorkspace({
   documents,
   selectedDocument,
   validation,
+  focusedFieldKey,
   viewerMode,
   zoom,
   onApplyExpectedTotal,
@@ -568,6 +578,7 @@ function VaultWorkspace({
   onDeleteDocument,
   onDownloadJson,
   onFitToPage,
+  onFocusField,
   onMarkReviewed,
   onProcessQueued,
   onRefreshExtraction,
@@ -629,6 +640,7 @@ function VaultWorkspace({
                 document={selectedDocument}
                 viewerMode={viewerMode}
                 zoom={zoom}
+                focusedFieldKey={focusedFieldKey}
                 onRetryExtraction={() => onRefreshExtraction(selectedDocument.id)}
                 onUpload={onUpload}
               />
@@ -649,8 +661,10 @@ function VaultWorkspace({
         <FieldRail
           document={selectedDocument}
           validation={validation}
+          focusedFieldKey={focusedFieldKey}
           onApplyExpectedTotal={onApplyExpectedTotal}
           onCommitFieldCorrection={onCommitFieldCorrection}
+          onFocusField={onFocusField}
           onMarkReviewed={onMarkReviewed}
           onUpdateCategory={onUpdateCategory}
           onUpdateField={onUpdateField}
@@ -864,12 +878,14 @@ function EmptyViewer({ onUpload }: { onUpload: () => void }) {
 
 function DocumentSourceView({
   document,
+  focusedFieldKey,
   onRetryExtraction,
   onUpload,
   viewerMode,
   zoom
 }: {
   document: DocumentRecord;
+  focusedFieldKey: ExtractedField["key"] | null;
   onRetryExtraction: () => void;
   onUpload: () => void;
   viewerMode: ViewerMode;
@@ -898,7 +914,7 @@ function DocumentSourceView({
           </div>
         ) : null}
         <img src={preview.image} alt={`${document.fileName} source`} />
-        <EvidenceOverlay document={document} />
+        <EvidenceOverlay document={document} focusedFieldKey={focusedFieldKey} />
       </article>
     );
   }
@@ -981,8 +997,17 @@ function DocumentTextView({
   );
 }
 
-function EvidenceOverlay({ document }: { document: DocumentRecord }) {
+function EvidenceOverlay({
+  document,
+  focusedFieldKey
+}: {
+  document: DocumentRecord;
+  focusedFieldKey: ExtractedField["key"] | null;
+}) {
   const preview = document.sourcePreview;
+  const hasFocusedRegion = Boolean(
+    focusedFieldKey && document.evidenceRegions?.some((region) => region.fieldKey === focusedFieldKey && region.bbox)
+  );
 
   if (!preview?.width || !preview.height || !document.evidenceRegions?.length) {
     return null;
@@ -998,10 +1023,11 @@ function EvidenceOverlay({ document }: { document: DocumentRecord }) {
           const top = (box.y0 / preview.height!) * 100;
           const width = ((box.x1 - box.x0) / preview.width!) * 100;
           const height = ((box.y1 - box.y0) / preview.height!) * 100;
+          const isFocused = region.fieldKey === focusedFieldKey;
 
           return (
             <span
-              className="source-evidence"
+              className={`source-evidence ${isFocused ? "focused" : ""} ${hasFocusedRegion && !isFocused ? "dimmed" : ""}`}
               key={region.id}
               title={`${region.label}: ${region.text}`}
               style={{
@@ -1193,17 +1219,21 @@ function EmptyFieldRail({ onUpload }: { onUpload: () => void }) {
 
 function FieldRail({
   document,
+  focusedFieldKey,
   validation,
   onApplyExpectedTotal,
   onCommitFieldCorrection,
+  onFocusField,
   onMarkReviewed,
   onUpdateCategory,
   onUpdateField
 }: {
   document: DocumentRecord;
+  focusedFieldKey: ExtractedField["key"] | null;
   validation: ValidationResult[];
   onApplyExpectedTotal: () => void;
   onCommitFieldCorrection: (field: ExtractedField, previousValue: string, nextValue: string) => void;
+  onFocusField: (fieldKey: ExtractedField["key"] | null) => void;
   onMarkReviewed: () => void;
   onUpdateCategory: (category: DocumentCategory) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
@@ -1246,15 +1276,22 @@ function FieldRail({
         {railMode === "fields" ? (
           visibleFields.length > 0 ? (
             visibleFields.map((field) => (
-              <label className="field-row" key={field.label}>
+              <label
+                className={`field-row ${field.key === focusedFieldKey ? "evidence-active" : ""}`}
+                key={field.label}
+                onClick={() => onFocusField(field.key)}
+                onPointerDown={() => onFocusField(field.key)}
+              >
                 <span className="label">{field.label}</span>
                 <input
                   aria-label={field.label}
                   className="field-input"
                   readOnly={field.key === "calculatedTotal"}
                   value={field.value}
+                  onClick={() => onFocusField(field.key)}
                   onFocus={() => {
                     editStartValues.current.set(String(field.key), field.value);
+                    onFocusField(field.key);
                   }}
                   onChange={(event) => onUpdateField(field, event.target.value)}
                   onBlur={(event) => {

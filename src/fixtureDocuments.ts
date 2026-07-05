@@ -31,8 +31,8 @@ export function createFixtureDocument(fixture: GeneratedFixture): DocumentRecord
     sourcePreview: {
       kind: "image",
       image: fixture.image,
-      width: 1120,
-      height: 1580,
+      width: 1240,
+      height: 1754,
       page: 1,
       mimeType: "image/svg+xml"
     },
@@ -85,14 +85,28 @@ function fixtureEvidence(
   label: string,
   text: string
 ): EvidenceRegion {
+  const bbox = fixtureEvidenceBox(fieldKey);
+
   return {
     id: `fixture-${String(fieldKey)}`,
     fieldKey,
     label,
     text,
     confidence: 96,
-    page: 1
+    page: 1,
+    bbox
   };
+}
+
+function fixtureEvidenceBox(fieldKey: ExtractedField["key"]): EvidenceRegion["bbox"] {
+  const boxes: Partial<Record<ExtractedField["key"], EvidenceRegion["bbox"]>> = {
+    vendorName: { x0: 150, y0: 154, x1: 620, y1: 206 },
+    invoiceNumber: { x0: 920, y0: 240, x1: 1050, y1: 276 },
+    invoiceDate: { x0: 920, y0: 280, x1: 1080, y1: 316 },
+    invoiceTotal: { x0: 752, y0: 1294, x1: 1004, y1: 1344 }
+  };
+
+  return boxes[fieldKey];
 }
 
 export function runFixtureSuite(): FixtureRun[] {
