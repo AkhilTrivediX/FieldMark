@@ -522,10 +522,20 @@ function Topbar({ activeTab, mode, onDownloadVaultArchive, onModeChange, onTabCh
         >
           <FolderOpen />
         </button>
-        <button className="icon-button" aria-label="Settings">
+        <button
+          className={`icon-button ${activeTab === "exports" ? "selected" : ""}`}
+          aria-label="Open export settings"
+          onClick={() => onTabChange("exports")}
+          title="Open export settings"
+        >
           <Settings />
         </button>
-        <button className="icon-button" aria-label="Help">
+        <button
+          className={`icon-button ${activeTab === "lab" ? "selected" : ""}`}
+          aria-label="Open test lab"
+          onClick={() => onTabChange("lab")}
+          title="Open test lab"
+        >
           <HelpCircle />
         </button>
       </div>
