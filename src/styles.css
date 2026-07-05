@@ -1392,6 +1392,28 @@ input:focus-visible {
   bottom: 0;
 }
 
+.review-menu {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  grid-column: 1 / -1;
+  overflow: hidden;
+}
+
+.review-menu button {
+  background: var(--bg);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  height: 36px;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.review-menu button:last-child {
+  border-bottom: 0;
+}
+
 .review-actions button,
 .heading-actions button:not(.secondary),
 .page-heading > button,
@@ -1407,6 +1429,21 @@ input:focus-visible {
   height: 42px;
   justify-content: center;
   padding: 0 14px;
+}
+
+.review-actions .review-menu button {
+  background: var(--bg);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--ink);
+  font-weight: 650;
+  height: 36px;
+  justify-content: flex-start;
+}
+
+.review-actions .review-menu button:last-child {
+  border-bottom: 0;
 }
 
 .heading-actions button:disabled,

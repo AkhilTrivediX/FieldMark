@@ -707,6 +707,7 @@ function VaultWorkspace({
           focusedFieldKey={focusedFieldKey}
           onApplyExpectedTotal={onApplyExpectedTotal}
           onCommitFieldCorrection={onCommitFieldCorrection}
+          onDownloadJson={onDownloadJson}
           onFocusField={onFocusField}
           onMarkReviewed={onMarkReviewed}
           onUpdateCategory={onUpdateCategory}
@@ -1276,6 +1277,7 @@ function FieldRail({
   validation,
   onApplyExpectedTotal,
   onCommitFieldCorrection,
+  onDownloadJson,
   onFocusField,
   onMarkReviewed,
   onUpdateCategory,
@@ -1286,6 +1288,7 @@ function FieldRail({
   validation: ValidationResult[];
   onApplyExpectedTotal: () => void;
   onCommitFieldCorrection: (field: ExtractedField, previousValue: string, nextValue: string) => void;
+  onDownloadJson: () => void;
   onFocusField: (fieldKey: ExtractedField["key"] | null) => void;
   onMarkReviewed: () => void;
   onUpdateCategory: (category: DocumentCategory) => void;
@@ -1293,6 +1296,7 @@ function FieldRail({
 }) {
   const [railMode, setRailMode] = useState<"fields" | "json">("fields");
   const [showReviewFields, setShowReviewFields] = useState(false);
+  const [reviewMenuOpen, setReviewMenuOpen] = useState(false);
   const editStartValues = useRef(new Map<string, string>());
   const fields = extractedFields(document);
   const visibleFields = showReviewFields
@@ -1417,9 +1421,33 @@ function FieldRail({
               <Check size={16} />
               Mark as reviewed
             </button>
-            <button aria-label="Review menu">
+            <button
+              aria-label="Review menu"
+              aria-expanded={reviewMenuOpen}
+              onClick={() => setReviewMenuOpen((current) => !current)}
+            >
               <ChevronDown size={16} />
             </button>
+            {reviewMenuOpen ? (
+              <div className="review-menu">
+                <button
+                  onClick={() => {
+                    setRailMode("json");
+                    setReviewMenuOpen(false);
+                  }}
+                >
+                  View evidence JSON
+                </button>
+                <button
+                  onClick={() => {
+                    onDownloadJson();
+                    setReviewMenuOpen(false);
+                  }}
+                >
+                  Download evidence JSON
+                </button>
+              </div>
+            ) : null}
           </div>
         </section>
       </div>
