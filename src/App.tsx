@@ -52,6 +52,20 @@ import { extractDocumentFromFile } from "./localExtraction.js";
 
 type MainTab = "vault" | "schemas" | "validation" | "exports" | "lab";
 type ViewerMode = "source" | "text";
+type SchemaCorrectionExample = {
+  documentId: string;
+  documentName: string;
+  previousValue: string;
+  nextValue: string;
+  correctedAt: string;
+};
+type SchemaCorrectionSuggestion = {
+  fieldKey: ExtractedField["key"];
+  label: string;
+  count: number;
+  documentCount: number;
+  examples: SchemaCorrectionExample[];
+};
 
 const storageKey = "fieldmark.workspace.v1";
 const zoomStep = 0.1;
@@ -111,30 +125,42 @@ export function App() {
           return document;
         }
 
-        const previousValue = extractedFields(document).find((item) => item.key === field.key)?.value ?? "";
         const invoice = updateInvoiceField(document.invoice, field.key, value);
         const counts = validationCounts(validateDocument({ ...document, invoice }));
-        const shouldRecordCorrection = previousValue.trim() !== value.trim() && field.key !== "calculatedTotal";
 
         return {
           ...document,
           invoice,
-          corrections: shouldRecordCorrection
-            ? [
+          status: counts.errors > 0 ? "needs_review" : "ready"
+        };
+      })
+    );
+  }
+
+  function recordSelectedFieldCorrection(field: ExtractedField, previousValue: string, nextValue: string) {
+    if (!selectedDocument || field.key === "calculatedTotal" || previousValue.trim() === nextValue.trim()) {
+      return;
+    }
+
+    setDocuments((current) =>
+      current.map((document) =>
+        document.id === selectedDocument.id
+          ? {
+              ...document,
+              corrections: [
                 ...(document.corrections ?? []),
                 {
                   id: `correction-${Date.now()}-${Math.random().toString(16).slice(2)}`,
                   fieldKey: field.key,
                   label: field.label,
                   previousValue,
-                  nextValue: value,
+                  nextValue,
                   correctedAt: new Date().toISOString()
                 }
               ]
-            : document.corrections,
-          status: counts.errors > 0 ? "needs_review" : "ready"
-        };
-      })
+            }
+          : document
+      )
     );
   }
 
@@ -377,6 +403,7 @@ export function App() {
           zoom={zoom}
           onApplyExpectedTotal={applyExpectedTotal}
           onCategoryFilterChange={setCategoryFilter}
+          onCommitFieldCorrection={recordSelectedFieldCorrection}
           onDeleteDocument={deleteDocument}
           onDownloadJson={downloadSelectedJson}
           onFitToPage={fitToPage}
@@ -504,6 +531,7 @@ interface VaultWorkspaceProps {
   zoom: number;
   onApplyExpectedTotal: () => void;
   onCategoryFilterChange: (category: DocumentCategory | "all") => void;
+  onCommitFieldCorrection: (field: ExtractedField, previousValue: string, nextValue: string) => void;
   onDeleteDocument: (id: string) => void;
   onDownloadJson: () => void;
   onFitToPage: () => void;
@@ -528,6 +556,7 @@ function VaultWorkspace({
   zoom,
   onApplyExpectedTotal,
   onCategoryFilterChange,
+  onCommitFieldCorrection,
   onDeleteDocument,
   onDownloadJson,
   onFitToPage,
@@ -589,6 +618,7 @@ function VaultWorkspace({
           document={selectedDocument}
           validation={validation}
           onApplyExpectedTotal={onApplyExpectedTotal}
+          onCommitFieldCorrection={onCommitFieldCorrection}
           onMarkReviewed={onMarkReviewed}
           onUpdateCategory={onUpdateCategory}
           onUpdateField={onUpdateField}
@@ -1113,6 +1143,7 @@ function FieldRail({
   document,
   validation,
   onApplyExpectedTotal,
+  onCommitFieldCorrection,
   onMarkReviewed,
   onUpdateCategory,
   onUpdateField
@@ -1120,11 +1151,13 @@ function FieldRail({
   document: DocumentRecord;
   validation: ValidationResult[];
   onApplyExpectedTotal: () => void;
+  onCommitFieldCorrection: (field: ExtractedField, previousValue: string, nextValue: string) => void;
   onMarkReviewed: () => void;
   onUpdateCategory: (category: DocumentCategory) => void;
   onUpdateField: (field: ExtractedField, value: string) => void;
 }) {
   const [railMode, setRailMode] = useState<"fields" | "json">("fields");
+  const editStartValues = useRef(new Map<string, string>());
   const fields = extractedFields(document);
   const counts = validationCounts(validation);
   const blockingIssue = validation.find((result) => result.severity === "error");
@@ -1158,7 +1191,16 @@ function FieldRail({
                 className="field-input"
                 readOnly={field.key === "calculatedTotal"}
                 value={field.value}
+                onFocus={() => {
+                  editStartValues.current.set(String(field.key), field.value);
+                }}
                 onChange={(event) => onUpdateField(field, event.target.value)}
+                onBlur={(event) => {
+                  const editKey = String(field.key);
+                  const previousValue = editStartValues.current.get(editKey) ?? field.value;
+                  editStartValues.current.delete(editKey);
+                  onCommitFieldCorrection(field, previousValue, event.currentTarget.value);
+                }}
               />
               <span className={`confidence ${field.confidenceKind}`}>
                 {field.confidence == null ? "-" : `${field.confidence}%`}
@@ -1321,6 +1363,8 @@ function ProductWorkspace(props: ProductWorkspaceProps) {
 
 function SchemaPage({ documents }: { documents: DocumentRecord[] }) {
   const correctionSuggestions = useMemo(() => schemaCorrectionSuggestions(documents), [documents]);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const topSuggestion = correctionSuggestions[0] ?? null;
 
   return (
     <section className="product-panel schema-page">
@@ -1358,16 +1402,18 @@ function SchemaPage({ documents }: { documents: DocumentRecord[] }) {
         ))}
       </div>
 
-      {correctionSuggestions.length > 0 ? (
+      {topSuggestion ? (
         <section className="suggestion-band">
           <div>
             <strong>Schema suggestion</strong>
             <p>
-              <code>{correctionSuggestions[0]!.label}</code> was corrected {correctionSuggestions[0]!.count} time
-              {correctionSuggestions[0]!.count === 1 ? "" : "s"}. Review aliases or validation rules for this field.
+              <code>{topSuggestion.label}</code> was corrected {topSuggestion.count} time
+              {topSuggestion.count === 1 ? "" : "s"}. Review aliases or validation rules for this field.
             </p>
           </div>
-          <button className="secondary">Review suggestion</button>
+          <button className="secondary" aria-expanded={reviewOpen} onClick={() => setReviewOpen((current) => !current)}>
+            {reviewOpen ? "Hide detail" : "Review suggestion"}
+          </button>
         </section>
       ) : (
         <section className="suggestion-band quiet-suggestion">
@@ -1380,12 +1426,57 @@ function SchemaPage({ documents }: { documents: DocumentRecord[] }) {
           </button>
         </section>
       )}
+
+      {topSuggestion && reviewOpen ? <SchemaSuggestionReview suggestion={topSuggestion} /> : null}
     </section>
   );
 }
 
-function schemaCorrectionSuggestions(documents: DocumentRecord[]) {
-  const counts = new Map<string, { label: string; count: number }>();
+function SchemaSuggestionReview({ suggestion }: { suggestion: SchemaCorrectionSuggestion }) {
+  const schemaField = schemaFields.find((field) => field.label === suggestion.label);
+
+  return (
+    <section className="schema-review-panel" aria-label="Schema suggestion review">
+      <div className="schema-review-head">
+        <div>
+          <strong>Correction pattern</strong>
+          <p>
+            <code>{schemaField?.path ?? String(suggestion.fieldKey)}</code> changed in {suggestion.documentCount} document
+            {suggestion.documentCount === 1 ? "" : "s"}. Use these samples before adding aliases or stricter validation.
+          </p>
+        </div>
+        <span className="preset-state">review ready</span>
+      </div>
+
+      <div className="schema-review-list">
+        {suggestion.examples.map((example) => (
+          <article className="schema-review-item" key={`${example.documentId}-${example.correctedAt}`}>
+            <div className="schema-review-item-head">
+              <strong>{example.documentName}</strong>
+              <span>{formatCorrectionTime(example.correctedAt)}</span>
+            </div>
+            <dl>
+              <div>
+                <dt>Before</dt>
+                <dd>{example.previousValue || "-"}</dd>
+              </div>
+              <div>
+                <dt>After</dt>
+                <dd>{example.nextValue || "-"}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function schemaCorrectionSuggestions(documents: DocumentRecord[]): SchemaCorrectionSuggestion[] {
+  const counts = new Map<
+    ExtractedField["key"],
+    { label: string; count: number; documentIds: Set<string>; examples: SchemaCorrectionExample[] }
+  >();
 
   for (const document of documents) {
     for (const correction of document.corrections ?? []) {
@@ -1393,15 +1484,52 @@ function schemaCorrectionSuggestions(documents: DocumentRecord[]) {
         continue;
       }
 
-      const key = String(correction.fieldKey);
-      const current = counts.get(key) ?? { label: correction.label, count: 0 };
-      counts.set(key, { ...current, count: current.count + 1 });
+      const current = counts.get(correction.fieldKey) ?? {
+        label: correction.label,
+        count: 0,
+        documentIds: new Set<string>(),
+        examples: []
+      };
+      current.count += 1;
+      current.documentIds.add(document.id);
+      current.examples.push({
+        documentId: document.id,
+        documentName: document.fileName,
+        previousValue: correction.previousValue,
+        nextValue: correction.nextValue,
+        correctedAt: correction.correctedAt
+      });
+      counts.set(correction.fieldKey, current);
     }
   }
 
   return Array.from(counts.entries())
-    .map(([fieldKey, value]) => ({ fieldKey, ...value }))
+    .map(([fieldKey, value]) => ({
+      fieldKey,
+      label: value.label,
+      count: value.count,
+      documentCount: value.documentIds.size,
+      examples: value.examples
+        .slice()
+        .sort((left, right) => new Date(right.correctedAt).getTime() - new Date(left.correctedAt).getTime())
+        .slice(0, 5)
+    }))
     .sort((left, right) => right.count - left.count);
+}
+
+function formatCorrectionTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
 }
 
 function ValidationPage({

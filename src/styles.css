@@ -1461,6 +1461,100 @@ input:focus-visible {
   cursor: not-allowed;
 }
 
+.schema-review-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.schema-review-head {
+  align-items: center;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.schema-review-head strong,
+.schema-review-item-head strong {
+  display: block;
+  font-size: 15px;
+}
+
+.schema-review-head p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 5px 0 0;
+}
+
+.schema-review-head code {
+  color: var(--ink);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 12.5px;
+}
+
+.schema-review-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.schema-review-item {
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  min-height: 126px;
+  padding: 14px 16px;
+}
+
+.schema-review-item:last-child {
+  border-right: 0;
+}
+
+.schema-review-item-head {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.schema-review-item-head span {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.schema-review-item dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.schema-review-item dl div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.schema-review-item dt,
+.schema-review-item dd {
+  font-size: 12.5px;
+  margin: 0;
+}
+
+.schema-review-item dt {
+  color: var(--muted);
+}
+
+.schema-review-item dd {
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .ledger-layout {
   display: grid;
   gap: 16px;
