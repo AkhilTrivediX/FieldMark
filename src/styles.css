@@ -1019,6 +1019,12 @@ input:focus-visible {
   padding: 0 14px;
 }
 
+.compare.selected {
+  background: var(--carbon);
+  border-color: var(--carbon);
+  color: white;
+}
+
 .fields {
   background: var(--bg);
   border-left: 1px solid var(--line);

@@ -647,8 +647,10 @@ function VaultWorkspace({
             </div>
             <ViewerFooter
               onFitToPage={onFitToPage}
+              onToggleTextView={onToggleTextView}
               onZoomIn={onZoomIn}
               onZoomOut={onZoomOut}
+              viewerMode={viewerMode}
               zoom={zoom}
             />
           </>
@@ -1157,13 +1159,17 @@ function InvoicePage({ document }: { document: DocumentRecord }) {
 
 function ViewerFooter({
   onFitToPage,
+  onToggleTextView,
   onZoomIn,
   onZoomOut,
+  viewerMode,
   zoom
 }: {
   onFitToPage: () => void;
+  onToggleTextView: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  viewerMode: ViewerMode;
   zoom: number;
 }) {
   return (
@@ -1191,7 +1197,13 @@ function ViewerFooter({
         <div className="viewer-mode">
           <span>Evidence</span>
           <span className="toggle" aria-hidden="true" />
-          <button className="compare">Compare</button>
+          <button
+            className={`compare ${viewerMode === "text" ? "selected" : ""}`}
+            aria-pressed={viewerMode === "text"}
+            onClick={onToggleTextView}
+          >
+            {viewerMode === "text" ? "Source" : "Compare OCR"}
+          </button>
         </div>
       </div>
     </footer>
