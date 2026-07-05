@@ -599,7 +599,13 @@ function VaultWorkspace({
               zoom={zoom}
             />
             <div className="viewer-canvas">
-              <DocumentSourceView document={selectedDocument} viewerMode={viewerMode} zoom={zoom} />
+              <DocumentSourceView
+                document={selectedDocument}
+                viewerMode={viewerMode}
+                zoom={zoom}
+                onRetryExtraction={() => onRefreshExtraction(selectedDocument.id)}
+                onUpload={onUpload}
+              />
             </div>
             <ViewerFooter
               onFitToPage={onFitToPage}
@@ -830,10 +836,14 @@ function EmptyViewer({ onUpload }: { onUpload: () => void }) {
 
 function DocumentSourceView({
   document,
+  onRetryExtraction,
+  onUpload,
   viewerMode,
   zoom
 }: {
   document: DocumentRecord;
+  onRetryExtraction: () => void;
+  onUpload: () => void;
   viewerMode: ViewerMode;
   zoom: number;
 }) {
@@ -883,6 +893,16 @@ function DocumentSourceView({
         <FileText size={34} />
         <h2>Source file is not attached</h2>
         <p>{document.processingMessage ?? "Upload this file again to run local OCR and show source evidence."}</p>
+        <div className="unavailable-actions">
+          <button onClick={onRetryExtraction}>
+            <RefreshCw size={16} />
+            Retry OCR
+          </button>
+          <button className="secondary" onClick={onUpload}>
+            <Upload size={16} />
+            Upload again
+          </button>
+        </div>
       </article>
     );
   }
